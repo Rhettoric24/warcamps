@@ -88,380 +88,449 @@
         @keyframes flashOrange { from { box-shadow: 0 0 10px rgba(255,165,0,0.2) inset; } to { box-shadow: 0 0 50px rgba(255,165,0,0.6) inset; } }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="min-h-screen p-4 md:p-8 relative">
 
     <div id="screen-overlay" class="fixed inset-0 pointer-events-none z-40"></div>
 
-    <header class="max-w-6xl mx-auto mb-8">
-        <div class="flex flex-col md:flex-row justify-between items-start gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-blue-400 tracking-widest uppercase">Highprince</h1>
-                <div class="flex items-center gap-3 mt-1">
-                    <p class="text-slate-400 italic">Military Command</p>
-                    <span class="text-slate-600">|</span>
-                    <div class="text-cyan-500 font-cinzel text-xs tracking-tighter bg-cyan-950/30 px-2 py-1 rounded">
-                        <span id="display-date">Year 1, Month 1, Day 1</span> 
-                        <span class="mx-1 text-slate-500">•</span>
-                        <span id="display-time">Next Day in: --</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="flex gap-4 warcamp-panel p-4 px-6 overflow-x-auto w-full md:w-auto">
-                <div class="text-center min-w-[70px]">
-                    <span class="block text-[10px] uppercase text-slate-400">Spheres</span>
-                    <span id="res-spheres" class="text-lg font-bold text-yellow-500">15000</span>
-                </div>
-                <div class="text-center min-w-[70px]">
-                    <span class="block text-[10px] uppercase text-slate-400">Gemhearts</span>
-                    <span id="res-gemhearts" class="text-lg font-bold gem-stat">0</span>
-                </div>
-                <div class="text-center min-w-[70px]">
-                    <span class="block text-[10px] uppercase text-slate-400">Provisions</span>
-                    <div class="text-lg font-bold">
-                        <span id="res-pop-current" class="text-white">0</span>/<span id="res-food-cap" class="text-green-500">50</span>
-                    </div>
-                </div>
-            </div>
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-4">
+        <div class="max-w-md w-full bg-slate-800 p-8 rounded-lg border-2 border-blue-900 shadow-2xl text-center">
+            <h1 class="text-3xl font-cinzel text-blue-400 mb-2">The Shattered Plains</h1>
+            <p class="text-slate-400 mb-6 italic">Enter your name, Highprince, to access your warcamp.</p>
+            <input type="text" id="username-input" class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white text-center mb-4 focus:border-blue-500 outline-none" placeholder="Highprince Name">
+            <button onclick="game.login()" class="w-full btn-alethi py-3 rounded font-bold text-lg">ENTER COMMAND</button>
         </div>
-    </header>
+    </div>
 
-    <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- LEFT: Tabs -->
-        <section class="lg:col-span-4 space-y-6">
-            <div class="warcamp-panel overflow-hidden">
-                <div class="flex border-b border-slate-700">
-                    <button onclick="game.setTab('build')" id="tab-build" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider active">Logistics</button>
-                    <button onclick="game.setTab('military')" id="tab-military" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider">Barracks</button>
-                    <button onclick="game.setTab('spy')" id="tab-spy" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider">Espionage</button>
-                    <button onclick="game.setTab('fabrial')" id="tab-fabrial" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-purple-400">Fabrials</button>
-                    <button onclick="game.setTab('arena')" id="tab-arena" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-red-400">Arena</button>
-                </div>
-
-                <!-- LOGISTICS TAB -->
-                <div id="panel-build" class="p-6 space-y-4">
-                    <h2 class="text-sm font-cinzel text-slate-400 mb-2">INFRASTRUCTURE</h2>
-                    <div class="space-y-3 max-h-80 overflow-y-auto pr-2">
-                        <!-- Black Market Unlock -->
-                        <div id="black-market-option" class="hidden bg-slate-900/80 p-3 rounded border border-yellow-700/50">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm text-yellow-500">Gemheart Exchange</p>
-                                <button onclick="game.buyGemheart()" class="bg-yellow-900/40 hover:bg-yellow-800 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-[10px]">10,000 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">Purchase a Gemheart from illicit traders.</p>
-                        </div>
-
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Spy Network</p>
-                                <button id="btn-build-spy_network" onclick="game.build('spy_network')" class="btn-alethi px-3 py-1 rounded text-[10px]">5000 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">Unlocks Espionage Units | Owned: <span id="own-spy_network">0</span></p>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Research Library</p>
-                                <button id="btn-build-research_library" onclick="game.build('research_library')" class="btn-alethi px-3 py-1 rounded text-[10px]">10000 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">Unlocks Fabrial Technology | Owned: <span id="own-research_library">0</span></p>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Grand Market</p>
-                                <button id="btn-build-market" onclick="game.build('market')" class="btn-alethi px-3 py-1 rounded text-[10px]">250 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400 font-bold text-yellow-500">+100 S/Day Income | Owned: <span id="own-market">0</span></p>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Soulcast Bunkers</p>
-                                <button id="btn-build-soulcaster" onclick="game.build('soulcaster')" class="btn-alethi px-3 py-1 rounded text-[10px]">150 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">+50 Provision Cap | Owned: <span id="own-soulcaster">0</span></p>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Military Camp</p>
-                                <button id="btn-build-training_camp" onclick="game.build('training_camp')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">+10% Army Power | Owned: <span id="own-training_camp">0</span></p>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                            <div class="flex justify-between items-center mb-1">
-                                <p class="font-bold text-sm">Ardent Monastery</p>
-                                <button id="btn-build-monastery" onclick="game.build('monastery')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
-                            </div>
-                            <p class="text-[10px] text-slate-400">+5% Survival Rate | Owned: <span id="own-monastery">0</span></p>
+    <!-- GAME UI (Hidden until login) -->
+    <div id="game-container" class="hidden">
+        <header class="max-w-6xl mx-auto mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-blue-400 tracking-widest uppercase">Highprince <span id="player-name-display"></span></h1>
+                    <div class="flex items-center gap-3 mt-1">
+                        <p class="text-slate-400 italic">Military Command</p>
+                        <span class="text-slate-600">|</span>
+                        <div class="text-cyan-500 font-cinzel text-xs tracking-tighter bg-cyan-950/30 px-2 py-1 rounded">
+                            <span id="display-date">Year 1, Month 1, Day 1</span> 
+                            <span class="mx-1 text-slate-500">•</span>
+                            <span id="display-time">Next Day in: --</span>
                         </div>
                     </div>
                 </div>
-
-                <!-- BARRACKS TAB -->
-                <div id="panel-military" class="hidden p-6 space-y-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-sm font-cinzel text-slate-400">RECRUITMENT</h2>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] text-slate-500 font-bold">Bulk:</span>
-                            <input type="number" id="recruit-amount" value="10" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded text-center text-xs py-1 text-cyan-400 font-bold">
-                        </div>
+                
+                <div class="flex gap-4 warcamp-panel p-4 px-6 overflow-x-auto w-full md:w-auto">
+                    <div class="text-center min-w-[70px]">
+                        <span class="block text-[10px] uppercase text-slate-400">Spheres</span>
+                        <span id="res-spheres" class="text-lg font-bold text-yellow-500">15000</span>
                     </div>
-                    <div class="space-y-2">
-                        <button onclick="game.recruit('bridgecrews')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Hire Bridgecrew</span> <span>5 S</span>
-                        </button>
-                        <button onclick="game.recruit('spearmen')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Train Spearmen</span> <span>10 S</span>
-                        </button>
-                        <button onclick="game.recruit('archers')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Train Archers</span> <span>15 S</span>
-                        </button>
-                        <button onclick="game.recruit('chulls')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Purchase Chull</span> <span>50 S</span>
-                        </button>
-                        <button onclick="game.recruit('shardbearers')" class="w-full bg-cyan-900 border border-cyan-400 py-2 rounded text-xs flex justify-between px-4">
-                            <span>Equip Shardbearer</span> <span>1 Gemheart</span>
-                        </button>
+                    <div class="text-center min-w-[70px]">
+                        <span class="block text-[10px] uppercase text-slate-400">Gemhearts</span>
+                        <span id="res-gemhearts" class="text-lg font-bold gem-stat">0</span>
                     </div>
-                </div>
-
-                <!-- ESPIONAGE TAB -->
-                <div id="panel-spy" class="hidden p-6 space-y-4">
-                    <h2 class="text-sm font-cinzel text-slate-400 mb-2">GHOSTBLOOD OPERATIONS</h2>
-                    
-                    <!-- RECRUITMENT SECTION -->
-                    <div id="spy-recruit-locked" class="bg-red-900/20 border border-red-900 p-4 rounded text-center">
-                        <p class="text-xs text-red-400 font-bold uppercase">Network Offline</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Build a Spy Network in Logistics.</p>
-                    </div>
-
-                    <div id="spy-recruit-unlocked" class="hidden space-y-2 mb-4">
-                        <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">Recruit Agents</h3>
-                        <button onclick="game.recruit('noble')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Lighteyes Noble (Pwr 1)</span> <span>50 S</span>
-                        </button>
-                        <button onclick="game.recruit('spy')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                            <span>Undercity Spy (Pwr 2)</span> <span>150 S</span>
-                        </button>
-                        <button onclick="game.recruit('ghostblood')" class="w-full bg-purple-900/50 hover:bg-purple-800 border border-purple-500/30 py-2 rounded text-xs flex justify-between px-4">
-                            <span>Ghostblood Agent (Pwr 5)</span> <span>600 S</span>
-                        </button>
-                    </div>
-
-                    <div class="bg-slate-900/60 p-4 rounded border border-slate-700 space-y-3">
-                        <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">Missions</h3>
-                        <select id="spy-target" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-xs">
-                            <option value="sadeas">Highprince Sadeas</option>
-                            <option value="vargo">Highprince Taravangian</option>
-                            <option value="sebarial">Highprince Sebarial</option>
-                        </select>
-                        <div class="grid grid-cols-1 gap-2">
-                            <button onclick="game.spyAction('intel')" class="bg-slate-700 hover:bg-slate-600 py-2 rounded text-[10px] uppercase font-bold transition-colors">Infiltrate (Intel)</button>
-                            <button onclick="game.spyAction('steal_spheres')" class="bg-yellow-900/50 hover:bg-yellow-800 py-2 rounded text-[10px] uppercase font-bold transition-colors">Heist Spheres (1.5x Power)</button>
-                            <button onclick="game.spyAction('steal_shards')" class="bg-cyan-900/50 hover:bg-cyan-800 py-2 rounded text-[10px] uppercase font-bold transition-colors">Seize Shards (3.0x Power)</button>
+                    <div class="text-center min-w-[70px]">
+                        <span class="block text-[10px] uppercase text-slate-400">Provisions</span>
+                        <div class="text-lg font-bold">
+                            <span id="res-pop-current" class="text-white">0</span>/<span id="res-food-cap" class="text-green-500">150</span>
                         </div>
                     </div>
                 </div>
+            </div>
+        </header>
 
-                <!-- FABRIAL TAB -->
-                <div id="panel-fabrial" class="hidden p-6 space-y-4">
-                    <h2 class="text-sm font-cinzel text-purple-400 mb-2 border-b border-purple-900/50 pb-2">FABRIAL ENGINEERING</h2>
-                    <div class="space-y-3">
-                        <!-- Heatrial -->
-                        <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                            <div>
-                                <p class="text-xs font-bold text-purple-200">Heatrial System</p>
-                                <p class="text-[10px] text-slate-400">Increases Provision Cap by 1.5x</p>
+        <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- LEFT: Tabs -->
+            <section class="lg:col-span-4 space-y-6">
+                <div class="warcamp-panel overflow-hidden">
+                    <div class="flex border-b border-slate-700">
+                        <button onclick="game.setTab('build')" id="tab-build" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider active">Logistics</button>
+                        <button onclick="game.setTab('military')" id="tab-military" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider">Barracks</button>
+                        <button onclick="game.setTab('spy')" id="tab-spy" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider">Espionage</button>
+                        <button onclick="game.setTab('fabrial')" id="tab-fabrial" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-purple-400">Fabrials</button>
+                        <button onclick="game.setTab('arena')" id="tab-arena" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-red-400">Arena</button>
+                    </div>
+
+                    <!-- LOGISTICS TAB -->
+                    <div id="panel-build" class="p-6 space-y-4">
+                        <h2 class="text-sm font-cinzel text-slate-400 mb-2">INFRASTRUCTURE</h2>
+                        <div class="space-y-3 max-h-80 overflow-y-auto pr-2">
+                            <!-- Black Market Unlock -->
+                            <div id="black-market-option" class="hidden bg-slate-900/80 p-3 rounded border border-yellow-700/50">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm text-yellow-500">Gemheart Exchange</p>
+                                    <button onclick="game.buyGemheart()" class="bg-yellow-900/40 hover:bg-yellow-800 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-[10px]">10,000 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">Purchase a Gemheart from illicit traders.</p>
                             </div>
-                            <button id="btn-fab-heatrial" onclick="game.constructFabrial('heatrial')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                3 Gemhearts
+
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Spy Network</p>
+                                    <button id="btn-build-spy_network" onclick="game.build('spy_network')" class="btn-alethi px-3 py-1 rounded text-[10px]">5000 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">Unlocks Espionage Units | Owned: <span id="own-spy_network">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Research Library</p>
+                                    <button id="btn-build-research_library" onclick="game.build('research_library')" class="btn-alethi px-3 py-1 rounded text-[10px]">10000 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">Unlocks Fabrial Technology | Owned: <span id="own-research_library">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Grand Market</p>
+                                    <button id="btn-build-market" onclick="game.build('market')" class="btn-alethi px-3 py-1 rounded text-[10px]">250 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400 font-bold text-yellow-500">+100 S/Day Income | Owned: <span id="own-market">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Soulcast Bunkers</p>
+                                    <button id="btn-build-soulcaster" onclick="game.build('soulcaster')" class="btn-alethi px-3 py-1 rounded text-[10px]">150 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">+50 Provision Cap | Owned: <span id="own-soulcaster">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Military Camp</p>
+                                    <button id="btn-build-training_camp" onclick="game.build('training_camp')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">+10% Army Power | Owned: <span id="own-training_camp">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Ardent Monastery</p>
+                                    <button id="btn-build-monastery" onclick="game.build('monastery')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">+5% Survival Rate | Owned: <span id="own-monastery">0</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BARRACKS TAB -->
+                    <div id="panel-military" class="hidden p-6 space-y-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h2 class="text-sm font-cinzel text-slate-400">RECRUITMENT</h2>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] text-slate-500 font-bold">Bulk:</span>
+                                <input type="number" id="recruit-amount" value="10" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded text-center text-xs py-1 text-cyan-400 font-bold">
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <button onclick="game.recruit('bridgecrews')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Hire Bridgecrew</span> <span>5 S</span>
                             </button>
-                        </div>
-                        <!-- Synchronized Ledger -->
-                        <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                            <div>
-                                <p class="text-xs font-bold text-purple-200">Synchronized Ledger</p>
-                                <p class="text-[10px] text-slate-400">Increases Market Income by 1.5x</p>
-                            </div>
-                            <button id="btn-fab-ledger" onclick="game.constructFabrial('ledger')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                5 Gemhearts
+                            <button onclick="game.recruit('spearmen')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Train Spearmen</span> <span>10 S</span>
                             </button>
-                        </div>
-                        <!-- Gravity-Spanning Rig -->
-                        <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                            <div>
-                                <p class="text-xs font-bold text-purple-200">Gravity-Spanning Rig</p>
-                                <p class="text-[10px] text-slate-400">Increases Army Speed by 2.0x</p>
-                            </div>
-                            <button id="btn-fab-gravity_lift" onclick="game.constructFabrial('gravity_lift')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                7 Gemhearts
+                            <button onclick="game.recruit('archers')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Train Archers</span> <span>15 S</span>
+                            </button>
+                            <button onclick="game.recruit('chulls')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Purchase Chull</span> <span>50 S</span>
+                            </button>
+                            <button onclick="game.recruit('shardbearers')" class="w-full bg-cyan-900 border border-cyan-400 py-2 rounded text-xs flex justify-between px-4">
+                                <span>Equip Shardbearer</span> <span>1 Gemheart</span>
                             </button>
                         </div>
                     </div>
-                </div>
 
-                <!-- ARENA TAB -->
-                <div id="panel-arena" class="hidden p-6 space-y-4">
-                    <div class="flex justify-between items-center border-b border-red-900 pb-2">
-                        <h2 class="text-sm font-cinzel text-red-400">PROVING GROUNDS</h2>
-                        <div class="text-right">
-                            <p class="text-[10px] text-slate-400">Champion Level: <span id="arena-level" class="text-white font-bold">1</span></p>
-                            <p class="text-[10px] text-slate-400">Health: <span id="arena-hp" class="text-green-400 font-bold">3/3</span></p>
-                            <p class="text-[10px] text-slate-400">Thrill: <span id="arena-thrill" class="text-red-400 font-bold">10/10</span></p>
-                            <p class="text-[10px] text-slate-400">Duels Remaining: <span id="arena-daily" class="text-cyan-400 font-bold">5/5</span></p>
-                        </div>
-                    </div>
-
-                    <!-- LOBBY VIEW -->
-                    <div id="arena-lobby" class="text-center space-y-4 py-8">
-                        <p class="text-xs text-slate-300 italic">"Command the Thrill. Break your opponent."</p>
-                        <button onclick="game.startDuel()" class="bg-red-800 hover:bg-red-700 text-white font-bold px-6 py-3 rounded border border-red-500 shadow-lg shadow-red-900/20">
-                            FIND OPPONENT
-                        </button>
+                    <!-- ESPIONAGE TAB -->
+                    <div id="panel-spy" class="hidden p-6 space-y-4">
+                        <h2 class="text-sm font-cinzel text-slate-400 mb-2">GHOSTBLOOD OPERATIONS</h2>
                         
-                        <!-- TOURNAMENT BUTTON (Conditional) -->
-                        <div id="tournament-active" class="hidden mt-6 bg-yellow-900/30 border border-yellow-600/50 p-4 rounded text-center animate-pulse">
-                            <h3 class="text-yellow-400 font-bold text-sm mb-2">MONTHLY TOURNAMENT</h3>
-                            <button onclick="game.enterTournament()" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold text-xs px-6 py-2 rounded">
-                                COMPETE FOR GEMHEART
+                        <!-- RECRUITMENT SECTION -->
+                        <div id="spy-recruit-locked" class="bg-red-900/20 border border-red-900 p-4 rounded text-center">
+                            <p class="text-xs text-red-400 font-bold uppercase">Network Offline</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Build a Spy Network in Logistics.</p>
+                        </div>
+
+                        <div id="spy-recruit-unlocked" class="hidden space-y-2 mb-4">
+                            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">Recruit Agents</h3>
+                            <button onclick="game.recruit('noble')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Lighteyes Noble (Pwr 1)</span> <span>50 S</span>
                             </button>
+                            <button onclick="game.recruit('spy')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
+                                <span>Undercity Spy (Pwr 2)</span> <span>150 S</span>
+                            </button>
+                            <button onclick="game.recruit('ghostblood')" class="w-full bg-purple-900/50 hover:bg-purple-800 border border-purple-500/30 py-2 rounded text-xs flex justify-between px-4">
+                                <span>Ghostblood Agent (Pwr 5)</span> <span>600 S</span>
+                            </button>
+                        </div>
+
+                        <div class="bg-slate-900/60 p-4 rounded border border-slate-700 space-y-3">
+                            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">Missions</h3>
+                            <select id="spy-target" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-xs">
+                                <option value="sadeas">Highprince Sadeas</option>
+                                <option value="vargo">Highprince Taravangian</option>
+                                <option value="sebarial">Highprince Sebarial</option>
+                            </select>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button onclick="game.spyAction('intel')" class="bg-slate-700 hover:bg-slate-600 py-2 rounded text-[10px] uppercase font-bold transition-colors">Infiltrate (Intel)</button>
+                                <button onclick="game.spyAction('steal_spheres')" class="bg-yellow-900/50 hover:bg-yellow-800 py-2 rounded text-[10px] uppercase font-bold transition-colors">Heist Spheres (1.5x Power)</button>
+                                <button onclick="game.spyAction('steal_shards')" class="bg-cyan-900/50 hover:bg-cyan-800 py-2 rounded text-[10px] uppercase font-bold transition-colors">Seize Shards (3.0x Power)</button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- COMBAT VIEW -->
-                    <div id="arena-combat" class="hidden flex flex-col h-full">
-                        <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded mb-4">
-                            <div class="text-left">
-                                <span class="block text-xs font-bold text-blue-300">YOU</span>
-                                <span id="combat-player-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
-                                <span id="combat-player-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
+                    <!-- FABRIAL TAB -->
+                    <div id="panel-fabrial" class="hidden p-6 space-y-4">
+                        <h2 class="text-sm font-cinzel text-purple-400 mb-2 border-b border-purple-900/50 pb-2">FABRIAL ENGINEERING</h2>
+                        <div class="space-y-3">
+                            <!-- Heatrial -->
+                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
+                                <div>
+                                    <p class="text-xs font-bold text-purple-200">Heatrial System</p>
+                                    <p class="text-[10px] text-slate-400">Increases Provision Cap by 1.5x</p>
+                                </div>
+                                <button id="btn-fab-heatrial" onclick="game.constructFabrial('heatrial')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
+                                    3 Gemhearts
+                                </button>
                             </div>
-                            <div class="text-xs text-slate-500 font-bold">VS</div>
-                            <div class="text-right">
-                                <span class="block text-xs font-bold text-red-300">ENEMY</span>
-                                <span id="combat-enemy-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
-                                <span id="combat-enemy-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
+                            <!-- Synchronized Ledger -->
+                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
+                                <div>
+                                    <p class="text-xs font-bold text-purple-200">Synchronized Ledger</p>
+                                    <p class="text-[10px] text-slate-400">Increases Market Income by 1.5x</p>
+                                </div>
+                                <button id="btn-fab-ledger" onclick="game.constructFabrial('ledger')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
+                                    5 Gemhearts
+                                </button>
                             </div>
-                        </div>
-
-                        <div class="flex-grow bg-black/30 p-2 rounded mb-4 h-32 overflow-y-auto text-[10px] font-mono border border-slate-800" id="combat-log">
-                            <p class="text-slate-500">Duel started. Commit your Thrill...</p>
-                        </div>
-
-                        <div class="bg-slate-800 p-3 rounded border border-slate-600">
-                            <label class="block text-[10px] text-slate-400 mb-1">Push Amount:</label>
-                            <div class="flex gap-2">
-                                <input type="number" id="thrill-input" min="0" value="1" class="bg-black border border-slate-600 rounded px-2 py-1 text-white text-sm w-16 text-center">
-                                <button onclick="game.commitThrill()" class="flex-grow bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded uppercase tracking-wider">
-                                    PUSH
+                            <!-- Gravity-Spanning Rig -->
+                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
+                                <div>
+                                    <p class="text-xs font-bold text-purple-200">Gravity-Spanning Rig</p>
+                                    <p class="text-[10px] text-slate-400">Increases Army Speed by 2.0x</p>
+                                </div>
+                                <button id="btn-fab-gravity_lift" onclick="game.constructFabrial('gravity_lift')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
+                                    7 Gemhearts
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                </div>
-            </div>
+                    <!-- ARENA TAB -->
+                    <div id="panel-arena" class="hidden p-6 space-y-4">
+                        <div class="flex justify-between items-center border-b border-red-900 pb-2">
+                            <h2 class="text-sm font-cinzel text-red-400">PROVING GROUNDS</h2>
+                            <div class="text-right">
+                                <p class="text-[10px] text-slate-400">Champion Level: <span id="arena-level" class="text-white font-bold">1</span></p>
+                                <p class="text-[10px] text-slate-400">Health: <span id="arena-hp" class="text-green-400 font-bold">3/3</span></p>
+                                <p class="text-[10px] text-slate-400">Thrill: <span id="arena-thrill" class="text-red-400 font-bold">10/10</span></p>
+                                <p class="text-[10px] text-slate-400">Duels Remaining: <span id="arena-daily" class="text-cyan-400 font-bold">5/5</span></p>
+                            </div>
+                        </div>
 
-            <!-- MILITARY DETAILS PANEL -->
-            <div class="warcamp-panel p-6">
-                <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">MILITARY STRENGTH</h2>
-                <div class="grid grid-cols-2 gap-3 text-xs mb-4">
-                    <div class="stat-card"><span class="text-slate-400">Defense:</span> <span id="stat-power" class="font-bold text-white">0</span></div>
-                    <div class="stat-card"><span class="text-slate-400">Available:</span> <span id="stat-avail" class="font-bold text-green-400">0</span></div>
-                    <div class="stat-card"><span class="text-slate-400">Speed Mod:</span> <span id="stat-speed" class="font-bold text-white">0%</span></div>
-                    <div class="stat-card"><span class="text-slate-400">Spy Power:</span> <span id="stat-agents" class="font-bold text-cyan-400">0</span></div>
-                </div>
-                
-                <div class="space-y-1 max-h-48 overflow-y-auto pr-2">
-                    <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                        <span class="text-slate-400">Bridgecrews</span> <span id="det-bridgecrews">0</span>
-                    </div>
-                    <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                        <span class="text-slate-400">Spearmen</span> <span id="det-spearmen">0</span>
-                    </div>
-                    <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                        <span class="text-slate-400">Archers</span> <span id="det-archers">0</span>
-                    </div>
-                    <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                        <span class="text-slate-400">Spies (Total)</span> <span id="det-spies-total" class="text-purple-400">0</span>
-                    </div>
-                    <div class="flex justify-between text-[11px]">
-                        <span class="text-slate-400">Shardbearers</span> <span id="det-shardbearers" class="text-cyan-400">0</span>
-                    </div>
-                </div>
-            </div>
-        </section>
+                        <!-- LOBBY VIEW -->
+                        <div id="arena-lobby" class="text-center space-y-4 py-8">
+                            <p class="text-xs text-slate-300 italic">"Command the Thrill. Break your opponent."</p>
+                            <button onclick="game.startDuel()" class="bg-red-800 hover:bg-red-700 text-white font-bold px-6 py-3 rounded border border-red-500 shadow-lg shadow-red-900/20">
+                                FIND OPPONENT
+                            </button>
+                            
+                            <!-- TOURNAMENT BUTTON (Conditional) -->
+                            <div id="tournament-active" class="hidden mt-6 bg-yellow-900/30 border border-yellow-600/50 p-4 rounded text-center animate-pulse">
+                                <h3 class="text-yellow-400 font-bold text-sm mb-2">MONTHLY TOURNAMENT</h3>
+                                <button onclick="game.enterTournament()" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold text-xs px-6 py-2 rounded">
+                                    COMPETE FOR GEMHEART
+                                </button>
+                            </div>
+                        </div>
 
-        <!-- CENTER: Mission -->
-        <section class="lg:col-span-5 space-y-6">
-            <div class="warcamp-panel p-6 h-full flex flex-col">
-                <h2 class="text-xl font-bold mb-4 border-b border-slate-700 pb-2">🏜️ SHATTERED PLAINS</h2>
-                
-                <div id="mission-ui" class="flex-grow flex flex-col relative">
+                        <!-- COMBAT VIEW -->
+                        <div id="arena-combat" class="hidden flex flex-col h-full">
+                            <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded mb-4">
+                                <div class="text-left">
+                                    <span class="block text-xs font-bold text-blue-300">YOU</span>
+                                    <span id="combat-player-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
+                                    <span id="combat-player-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
+                                </div>
+                                <div class="text-xs text-slate-500 font-bold">VS</div>
+                                <div class="text-right">
+                                    <span class="block text-xs font-bold text-red-300">ENEMY</span>
+                                    <span id="combat-enemy-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
+                                    <span id="combat-enemy-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
+                                </div>
+                            </div>
+
+                            <div class="flex-grow bg-black/30 p-2 rounded mb-4 h-32 overflow-y-auto text-[10px] font-mono border border-slate-800" id="combat-log">
+                                <p class="text-slate-500">Duel started. Commit your Thrill...</p>
+                            </div>
+
+                            <div class="bg-slate-800 p-3 rounded border border-slate-600">
+                                <label class="block text-[10px] text-slate-400 mb-1">Push Amount:</label>
+                                <div class="flex gap-2">
+                                    <input type="number" id="thrill-input" min="0" value="1" class="bg-black border border-slate-600 rounded px-2 py-1 text-white text-sm w-16 text-center">
+                                    <button onclick="game.commitThrill()" class="flex-grow bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded uppercase tracking-wider">
+                                        PUSH
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- MILITARY DETAILS PANEL -->
+                <div class="warcamp-panel p-6">
+                    <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">MILITARY STRENGTH</h2>
+                    <div class="grid grid-cols-2 gap-3 text-xs mb-4">
+                        <div class="stat-card"><span class="text-slate-400">Defense:</span> <span id="stat-power" class="font-bold text-white">0</span></div>
+                        <div class="stat-card"><span class="text-slate-400">Available:</span> <span id="stat-avail" class="font-bold text-green-400">0</span></div>
+                        <div class="stat-card"><span class="text-slate-400">Speed Mod:</span> <span id="stat-speed" class="font-bold text-white">0%</span></div>
+                        <div class="stat-card"><span class="text-slate-400">Spy Power:</span> <span id="stat-agents" class="font-bold text-cyan-400">0</span></div>
+                    </div>
                     
-                    <!-- NEW MISSIONS MENU -->
-                    <div id="active-deployments" class="mb-4 space-y-2">
-                        <!-- Populated by JS -->
+                    <div class="space-y-1 max-h-48 overflow-y-auto pr-2">
+                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
+                            <span class="text-slate-400">Bridgecrews</span> <span id="det-bridgecrews">0</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
+                            <span class="text-slate-400">Spearmen</span> <span id="det-spearmen">0</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
+                            <span class="text-slate-400">Archers</span> <span id="det-archers">0</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
+                            <span class="text-slate-400">Spies (Total)</span> <span id="det-spies-total" class="text-purple-400">0</span>
+                        </div>
+                        <div class="flex justify-between text-[11px]">
+                            <span class="text-slate-400">Shardbearers</span> <span id="det-shardbearers" class="text-cyan-400">0</span>
+                        </div>
                     </div>
+                </div>
+            </section>
 
-                    <div class="grid grid-cols-2 gap-2 mb-4">
-                        <button onclick="game.openDeployModal('scout')" class="bg-slate-700 hover:bg-slate-600 p-3 rounded text-left border border-slate-600">
-                            <span class="block text-xs font-bold text-slate-200">Scouting Expedition</span>
-                            <span class="block text-[10px] text-slate-400">Duration: 3 Days</span>
-                        </button>
-                        <button onclick="game.openDeployModal('attack')" class="bg-red-900/40 hover:bg-red-900/60 p-3 rounded text-left border border-red-900/50">
-                            <span class="block text-xs font-bold text-red-300">Attack Parshendi</span>
-                            <span class="block text-[10px] text-red-400">High Risk | Chance: Gemheart</span>
-                        </button>
-                    </div>
-
-                    <!-- PLATEAU RUN EVENT -->
-                    <div id="plateau-event-container" class="hidden bg-slate-900/80 p-4 rounded-lg border border-orange-500/50 mb-4 relative overflow-hidden">
-                        <div id="plateau-label" class="absolute top-0 right-0 bg-orange-600 text-[10px] font-bold px-2 py-1">WARNING</div>
-                        <h3 class="text-lg font-bold text-orange-400 mb-1">PLATEAU RUN DETECTED</h3>
-                        <p id="plateau-timer" class="text-2xl font-bold text-white text-center my-4">00:30</p>
+            <!-- CENTER: Mission -->
+            <section class="lg:col-span-5 space-y-6">
+                <div class="warcamp-panel p-6 h-full flex flex-col">
+                    <h2 class="text-xl font-bold mb-4 border-b border-slate-700 pb-2">🏜️ SHATTERED PLAINS</h2>
+                    
+                    <div id="mission-ui" class="flex-grow flex flex-col relative">
                         
-                        <div id="plateau-actions" class="hidden">
-                            <p class="text-xs text-center text-slate-300 mb-2">Coalition forming. Muster your forces.</p>
-                            <button id="btn-muster" onclick="game.openDeployModal('run')" class="w-full btn-alethi py-3 rounded font-bold text-sm mb-2">
-                                MUSTER FORCES
+                        <!-- NEW MISSIONS MENU -->
+                        <div id="active-deployments" class="mb-4 space-y-2">
+                            <!-- Populated by JS -->
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <button onclick="game.openDeployModal('scout')" class="bg-slate-700 hover:bg-slate-600 p-3 rounded text-left border border-slate-600">
+                                <span class="block text-xs font-bold text-slate-200">Scouting Expedition</span>
+                                <span class="block text-[10px] text-slate-400">Duration: 3 Days</span>
+                            </button>
+                            <button onclick="game.openDeployModal('attack')" class="bg-red-900/40 hover:bg-red-900/60 p-3 rounded text-left border border-red-900/50">
+                                <span class="block text-xs font-bold text-red-300">Attack Parshendi</span>
+                                <span class="block text-[10px] text-red-400">High Risk | Chance: Gemheart</span>
                             </button>
                         </div>
 
-                        <!-- LEADERBOARD (MUSTER PHASE) -->
-                        <div id="muster-leaderboard" class="hidden mt-4 border-t border-slate-700 pt-2">
-                            <h4 class="text-[10px] font-bold text-slate-400 mb-1">PROJECTED SPEEDS</h4>
-                            <div id="leaderboard-content" class="space-y-1"></div>
+                        <!-- PLATEAU RUN EVENT -->
+                        <div id="plateau-event-container" class="hidden bg-slate-900/80 p-4 rounded-lg border border-orange-500/50 mb-4 relative overflow-hidden">
+                            <div id="plateau-label" class="absolute top-0 right-0 bg-orange-600 text-[10px] font-bold px-2 py-1">WARNING</div>
+                            <h3 class="text-lg font-bold text-orange-400 mb-1">PLATEAU RUN DETECTED</h3>
+                            <p id="plateau-timer" class="text-2xl font-bold text-white text-center my-4">00:30</p>
+                            
+                            <div id="plateau-actions" class="hidden">
+                                <p class="text-xs text-center text-slate-300 mb-2">Coalition forming. Muster your forces.</p>
+                                <button id="btn-muster" onclick="game.openDeployModal('run')" class="w-full btn-alethi py-3 rounded font-bold text-sm mb-2">
+                                    MUSTER FORCES
+                                </button>
+                            </div>
+
+                            <!-- LEADERBOARD (MUSTER PHASE) -->
+                            <div id="muster-leaderboard" class="hidden mt-4 border-t border-slate-700 pt-2">
+                                <h4 class="text-[10px] font-bold text-slate-400 mb-1">PROJECTED SPEEDS</h4>
+                                <div id="leaderboard-content" class="space-y-1"></div>
+                            </div>
+                        </div>
+
+                        <div id="game-log" class="h-32 overflow-y-auto bg-black/30 p-4 rounded text-[11px] font-mono mt-auto border border-slate-800">
+                            <div class="log-entry">System offline. Please authenticate.</div>
                         </div>
                     </div>
+                </div>
+            </section>
 
-                    <div id="game-log" class="h-32 overflow-y-auto bg-black/30 p-4 rounded text-[11px] font-mono mt-auto border border-slate-800">
-                        <div class="log-entry">System online. Waiting for plateau activity.</div>
+            <!-- RIGHT: Interactions -->
+            <section class="lg:col-span-3 space-y-6">
+                <div class="warcamp-panel p-6 h-64 flex flex-col">
+                    <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">SPANREED</h2>
+                    <div id="chat-box" class="flex-grow overflow-y-auto text-[11px] space-y-2 mb-4">
+                        <p><b class="text-blue-400">Dalinar:</b> Watch your flanks. The Parshendi are probing our lines.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="chat-input" type="text" class="bg-slate-800 border-none rounded px-2 py-1 flex-grow text-[11px]" placeholder="Message...">
+                        <button onclick="game.sendChat()" class="btn-alethi px-2 py-1 rounded text-[11px]">Send</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- DEPLOYMENT MODAL -->
+    <div id="deploy-modal" class="modal">
+        <div class="bg-slate-900 border border-slate-600 rounded-lg p-6 w-96 max-w-full m-4 shadow-2xl">
+            <h2 class="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">MUSTER FORCES</h2>
+            <p id="deploy-type-label" class="text-xs text-cyan-400 mb-4 uppercase tracking-widest"></p>
+            
+            <div class="space-y-3 mb-6">
+                <div class="flex justify-between items-center text-[10px] text-slate-400 italic">
+                    <span>Unit Type</span>
+                    <span>Available / Total</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-300">Bridgecrews</label>
+                    <div class="flex items-center gap-2">
+                        <span id="avail-modal-bridgecrews" class="text-xs text-slate-500">0/0</span>
+                        <input type="number" id="deploy-bridgecrews" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-300">Spearmen</label>
+                    <div class="flex items-center gap-2">
+                        <span id="avail-modal-spearmen" class="text-xs text-slate-500">0/0</span>
+                        <input type="number" id="deploy-spearmen" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-300">Archers</label>
+                    <div class="flex items-center gap-2">
+                        <span id="avail-modal-archers" class="text-xs text-slate-500">0/0</span>
+                        <input type="number" id="deploy-archers" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-300">Shardbearers</label>
+                    <div class="flex items-center gap-2">
+                        <span id="avail-modal-shardbearers" class="text-xs text-slate-500">0/0</span>
+                        <input type="number" id="deploy-shardbearers" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-300">Chulls</label>
+                    <div class="flex items-center gap-2">
+                        <span id="avail-modal-chulls" class="text-xs text-slate-500">0/0</span>
+                        <input type="number" id="deploy-chulls" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
                     </div>
                 </div>
             </div>
-        </section>
 
-        <!-- RIGHT: Interactions -->
-        <section class="lg:col-span-3 space-y-6">
-            <div class="warcamp-panel p-6 h-64 flex flex-col">
-                <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">SPANREED</h2>
-                <div id="chat-box" class="flex-grow overflow-y-auto text-[11px] space-y-2 mb-4">
-                    <p><b class="text-blue-400">Dalinar:</b> Watch your flanks. The Parshendi are probing our lines.</p>
-                </div>
-                <div class="flex gap-2">
-                    <input id="chat-input" type="text" class="bg-slate-800 border-none rounded px-2 py-1 flex-grow text-[11px]" placeholder="Message...">
-                    <button onclick="game.sendChat()" class="btn-alethi px-2 py-1 rounded text-[11px]">Send</button>
-                </div>
+            <div class="flex gap-3">
+                <button onclick="game.closeDeployModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded font-bold">CANCEL</button>
+                <button onclick="game.confirmDeploy()" class="flex-1 btn-alethi text-xs py-2 rounded font-bold">DEPLOY ARMY</button>
             </div>
-        </section>
-
-    </main>
+        </div>
+    </div>
 
     <script>
         const game = {
+            username: null,
             state: {
-                spheres: 15000, // Production Start
+                spheres: 15000, 
                 gemhearts: 0,
                 military: {
                     bridgecrews: 20, spearmen: 100, archers: 0,
@@ -482,7 +551,7 @@
                 deployments: [], 
                 buildings: { 
                     soulcaster: 0, market: 0, training_camp: 0,
-                    monastery: 0, spy_network: 0, research_library: 0
+                    monastery: 0, shelter: 0, spy_network: 0, research_library: 0
                 },
                 fabrials: {
                     heatrial: false,
@@ -519,7 +588,8 @@
                 training_camp: { baseCost: 7000, cap: 0, income: 0, powerMod: 0.1, survivalMod: 0, scale: 'linear' },
                 monastery:     { baseCost: 7000, cap: 0, income: 0, powerMod: 0, survivalMod: 0.05, scale: 'linear' },
                 spy_network:   { baseCost: 5000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1 },
-                research_library: { baseCost: 10000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1 }
+                research_library: { baseCost: 10000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1 },
+                shelter:       { baseCost: 100, cap: 10, income: 0, powerMod: 0, survivalMod: 0 } 
             },
 
             fabrialData: {
@@ -533,31 +603,39 @@
                 UI_UPDATE_RATE: 1000 
             },
 
+            // INIT NO LONGER LOADS GAME. LOGIN DOES.
             init() {
-                this.loadGame();
+                // Wait for login
+                document.getElementById('username-input').addEventListener('keypress', (e) => {
+                    if(e.key === 'Enter') this.login();
+                });
+            },
+
+            login() {
+                const input = document.getElementById('username-input');
+                const name = input.value.trim();
+                if(!name) return;
+
+                this.username = name;
+                document.getElementById('player-name-display').innerText = name;
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('game-container').classList.remove('hidden');
+
+                this.loadGame(); // Load data specific to this user
                 this.processOfflineTime();
                 this.updateUI();
                 setInterval(() => this.loop(), this.constants.UI_UPDATE_RATE);
                 
-                // Initial Cap Warning
-                const stats = this.getArmyStats(false);
-                if(stats.pop > stats.cap) {
-                    this.log("WARNING: Population exceeds provision capacity! Build Soulcast Bunkers immediately.", "text-red-500 font-bold bg-red-900/20 p-2");
-                } else {
-                    this.log("Warcamp Command active. Defense systems online.");
-                }
+                this.log(`Welcome, Highprince ${name}. Warcamp Command online.`, "text-cyan-400 font-bold");
             },
 
             processOfflineTime() {
                 const now = Date.now();
                 const elapsed = now - this.state.lastTickTime;
                 
-                // If more than 1 day passed, catch up
                 if(elapsed >= this.constants.DAY_MS) {
                      const daysPassed = Math.floor(elapsed / this.constants.DAY_MS);
                      this.processDailyTicks(daysPassed);
-                     // Fast forward mission times
-                     // (Already handled by checkDeployments using real timestamps)
                      this.state.lastTickTime = now;
                      this.log(`Offline for ${daysPassed} days. Resources updated.`, "text-cyan-400");
                 }
@@ -565,11 +643,9 @@
 
             loop() {
                 const now = Date.now();
-                // Check if a day has passed
                 if (now - this.state.lastTickTime >= this.constants.DAY_MS) {
-                    const daysPassed = Math.floor((now - this.state.lastTickTime) / this.constants.DAY_MS);
-                    this.processDailyTicks(daysPassed);
-                    this.state.lastTickTime = now; // Reset to now
+                    this.processDailyTicks(1);
+                    this.state.lastTickTime = now;
                     this.saveGame();
                 }
 
@@ -590,7 +666,6 @@
                     } else if (run.phase === 'OPEN') {
                         const timeLeft = (run.openEndTime - now) / 1000;
                         
-                        // Human readable format for long times
                         const hrs = Math.floor(timeLeft / 3600);
                         const mins = Math.floor((timeLeft % 3600) / 60);
                         document.getElementById('plateau-timer').innerText = `Departing: ${hrs}h ${mins}m`;
@@ -620,8 +695,6 @@
                          this.log("A new day! Your champion has recovered.", "text-green-400");
                     }
                     
-                    // Plateau Run Chance (approx 2-3 times per 24 days)
-                    // 10% chance per day = ~2.4 runs per month
                     if (!this.state.activeRun && Math.random() < 0.1) {
                         this.spawnEvent();
                     }
@@ -677,7 +750,7 @@
                 this.state.activeRun = {
                     id: Math.floor(Math.random() * 999),
                     phase: 'WARNING',
-                    warnEndTime: now + 30000, // 30s Warning
+                    warnEndTime: now + 30000, 
                     difficulty: Math.random() > 0.5 ? 'Medium' : 'Hard',
                     enemyPower: 50 + Math.floor(Math.random() * 100),
                     participants: [],
@@ -810,7 +883,6 @@
                 };
 
                 this.state.deployments.push(deployment);
-                // Displaying real-time return
                 const actualHours = (durationMs / 3600000).toFixed(1);
                 this.log(`Army deployed for ${this.state.pendingDeployType}. Speed: ${(speed*100).toFixed(0)}%. Return: ${actualHours} hrs.`, "text-blue-400");
                 this.closeDeployModal();
@@ -823,6 +895,7 @@
                 if (this.state.activeRun && this.state.activeRun.playerForces) {
                     actions.innerHTML = `<p class="text-green-400 font-bold text-center text-xs border border-green-900 bg-green-900/20 p-2 rounded">FORCES COMMITTED</p>`;
                 } else if (this.state.activeRun) {
+                    // Reset if new run
                     actions.innerHTML = `
                         <p class="text-xs text-center text-slate-300 mb-2">Coalition forming. Muster your forces.</p>
                         <button id="btn-muster" onclick="game.openDeployModal('run')" class="w-full btn-alethi py-3 rounded font-bold text-sm mb-2">
@@ -868,7 +941,6 @@
                 this.log("The Coalition has departed for the Plateau.", "text-slate-400 italic");
 
                 if (run.playerForces) {
-                    // Fixed return time for Plateau Run: 2 Days (2 Hours)
                     const durationMs = 2 * this.constants.DAY_MS;
                     this.state.deployments.push({
                         id: Date.now(),
@@ -1003,7 +1075,7 @@
                 }
                 const trainingBonus = 1 + (this.state.buildings.training_camp * this.buildingData.training_camp.powerMod);
                 const survivalBonus = (this.state.buildings.monastery * this.buildingData.monastery.survivalMod);
-                let provisionCap = 50 + (this.state.buildings.soulcaster * 50);
+                let provisionCap = 150 + (this.state.buildings.soulcaster * 50); // UPDATED BASE CAP
                 if (this.state.fabrials.heatrial) provisionCap *= 1.5;
                 
                 return { power: basePower * unitMultiplier * trainingBonus, carry: totalCarry, speed: Math.max(0.1, speedMod), pop: currentPop, cap: Math.floor(provisionCap), survivalBonus: survivalBonus };
@@ -1123,27 +1195,17 @@
                 
                 document.getElementById('arena-level').innerText = this.state.arena.level;
                 document.getElementById('arena-hp').innerText = `${this.state.arena.hp}/${this.state.arena.maxHp}`;
-                document.getElementById('arena-thrill').innerText = `${this.state.arena.maxThrill || 10}`;
-                document.getElementById('combat-player-hp').innerText = `HP: ${this.state.activeDuel ? this.state.activeDuel.playerHp : this.state.arena.hp}/${this.state.activeDuel ? this.state.activeDuel.playerMaxHp : this.state.arena.maxHp}`;
-                document.getElementById('combat-player-thrill').innerText = `Thrill: ${this.state.activeDuel ? this.state.activeDuel.playerThrill : (this.state.arena.maxThrill || 10)}`;
-
-                if(this.state.activeDuel) {
-                     document.getElementById('combat-enemy-hp').innerText = `HP: ${this.state.activeDuel.enemyHp}/${this.state.activeDuel.enemyMaxHp}`;
-                     document.getElementById('combat-enemy-thrill').innerText = `Thrill: ${this.state.activeDuel.enemyThrill}`;
-                     document.getElementById('arena-lobby').classList.add('hidden');
-                     document.getElementById('arena-combat').classList.remove('hidden');
-                     const log = document.getElementById('combat-log');
-                     log.innerHTML = this.state.activeDuel.log.map(l => `<p>${l}</p>`).join('');
-                     log.scrollTop = log.scrollHeight;
-                } else {
-                     document.getElementById('arena-lobby').classList.remove('hidden');
-                     document.getElementById('arena-combat').classList.add('hidden');
-                }
-
+                
                 if (this.state.tournamentActive) {
                     document.getElementById('tournament-active').classList.remove('hidden');
+                    if (document.getElementById('arena-lobby')) {
+                         document.getElementById('arena-lobby').classList.add('opacity-50');
+                    }
                 } else {
                     document.getElementById('tournament-active').classList.add('hidden');
+                    if (document.getElementById('arena-lobby')) {
+                         document.getElementById('arena-lobby').classList.remove('opacity-50');
+                    }
                 }
 
                 const depList = document.getElementById('active-deployments');
@@ -1391,10 +1453,12 @@
             },
             log(msg, color = 'text-slate-200') {
                 const logEl = document.getElementById('game-log');
-                const entry = document.createElement('div');
-                entry.className = `log-entry ${color}`;
-                entry.innerHTML = msg;
-                logEl.prepend(entry);
+                if (logEl) {
+                    const entry = document.createElement('div');
+                    entry.className = `log-entry ${color}`;
+                    entry.innerHTML = msg;
+                    logEl.prepend(entry);
+                }
             },
             setTab(tab) {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1419,20 +1483,16 @@
                 document.getElementById('display-date').innerText = `Year ${years}, Month ${months}, Day ${days}`;
                 const msNext = this.constants.DAY_MS - (elapsed % this.constants.DAY_MS);
                 const secs = Math.ceil(msNext / 1000);
-                
-                // Format secs into mins:secs if needed, or just secs if short
-                let timeStr = `${secs}s`;
-                if (secs > 60) {
-                    const mins = Math.floor(secs / 60);
-                    const s = secs % 60;
-                    timeStr = `${mins}m ${s}s`;
-                }
-
-                document.getElementById('display-time').innerText = `Next Day: ${timeStr}`;
+                document.getElementById('display-time').innerText = `Next Day: ${secs}s`;
             },
-            saveGame() { localStorage.setItem('highprince_save_v16', JSON.stringify(this.state)); },
+            saveGame() {
+                if(this.username) {
+                    localStorage.setItem(`highprince_save_v17_${this.username}`, JSON.stringify(this.state));
+                }
+            },
             loadGame() {
-                const saved = localStorage.getItem('highprince_save_v16');
+                if(!this.username) return;
+                const saved = localStorage.getItem(`highprince_save_v17_${this.username}`);
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     this.state = {
@@ -1441,12 +1501,7 @@
                         military: { ...this.state.military, ...parsed.military },
                         buildings: { ...this.state.buildings, ...parsed.buildings },
                         fabrials: { ...this.state.fabrials, ...parsed.fabrials },
-                        arena: { 
-                            ...this.state.arena,
-                            ...parsed.arena,
-                            dailyDuels: parsed.arena?.dailyDuels || 0,
-                            maxThrill: parsed.arena?.maxThrill || (10 + (parsed.arena?.level || 1) - 1)
-                        }
+                        arena: { ...this.state.arena, ...parsed.arena }
                     };
                     if(parsed.activeRun) this.state.activeRun = parsed.activeRun;
                     if(parsed.deployments) this.state.deployments = parsed.deployments;
