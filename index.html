@@ -4,461 +4,761 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Highprince: Warcamp Simulator</title>
+    
+    <!-- 1. Load Tailwind CSS (Styling) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Import Map: This tells the browser where to find React and Icons -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+      }
+    }
+    </script>
+
+    <!-- 3. Load Babel (Translates React code for the browser) -->
+    <!-- Pinned to a stable version to prevent configuration errors -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+    
+    <style>
+        /* Custom Scrollbar for a cleaner look */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        body { background-color: #0f172a; color: #e2e8f0; }
+    </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 relative">
+<body>
+    <div id="root"></div>
 
-    <div id="screen-overlay" class="fixed inset-0 pointer-events-none z-40"></div>
+    <!-- 4. YOUR GAME CODE STARTS HERE -->
+    <!-- Removed manual presets to allow Babel to handle modules correctly -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Shield, Sword, Hammer, Scroll, Users, Crown, Activity, Eye, Play, Plus, X, Clock, Zap, Home, AlertTriangle, Trophy, Flame } from 'lucide-react';
 
-    <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-4">
-        <div class="max-w-md w-full bg-slate-800 p-8 rounded-lg border-2 border-blue-900 shadow-2xl text-center">
-            <h1 class="text-3xl font-cinzel text-blue-400 mb-2">The Shattered Plains</h1>
-            <p class="text-slate-400 mb-6 italic">Enter your name, Highprince, to access your warcamp.</p>
-            <input type="text" id="username-input" class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white text-center mb-4 focus:border-blue-500 outline-none" placeholder="Highprince Name">
-            <button onclick="game.login()" class="w-full btn-alethi py-3 rounded font-bold text-lg">ENTER COMMAND</button>
-        </div>
-    </div>
+        // --- CONFIGURATION ---
+        const TROOP_STATS = {
+            bridgemen: { name: "Bridgemen", cost: 5, currency: 'spheres', power: 0.25, survival: 0.4, carry: 2, speed: 2.0, desc: "High Speed. Good carry." },
+            spearmen: { name: "Spearmen", cost: 10, currency: 'spheres', power: 1, survival: 0.75, carry: 1, desc: "Solid infantry." },
+            archers: { name: "Archers", cost: 15, currency: 'spheres', power: 8, survival: 0.8, carry: 1, desc: "Ranged support." },
+            shardbearers: { name: "Shardbearer", cost: 1, currency: 'gemhearts', power: 0, survival: 0.99, carry: 2, desc: "Unlocks Arena. Force x2." },
+            chulls: { name: "Chulls", cost: 50, currency: 'spheres', power: 0.5, survival: 0.9, carry: 50, desc: "Slows Army (-1%). High Carry." }
+        };
 
-    <!-- GAME UI (Hidden until login) -->
-    <div id="game-container" class="hidden">
-        <header class="max-w-6xl mx-auto mb-8">
-            <div class="flex flex-col md:flex-row justify-between items-start gap-4">
-                <div>
-                    <h1 class="text-3xl font-bold text-blue-400 tracking-widest uppercase">Highprince <span id="player-name-display"></span></h1>
-                    <div class="flex items-center gap-3 mt-1">
-                        <p class="text-slate-400 italic">Military Command</p>
-                        <span class="text-slate-600">|</span>
-                        <div class="text-cyan-500 font-cinzel text-xs tracking-tighter bg-cyan-950/30 px-2 py-1 rounded flex items-center gap-2">
-                            <span id="display-date">Year 1, Month 1, Day 1</span> 
-                            <span class="mx-1 text-slate-500">•</span>
-                            <span id="display-time">Next Day in: --</span>
-                        </div>
-                        <button id="btn-notifications" onclick="game.requestNotificationPermission()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded transition-colors font-bold" title="Enable Desktop Alerts">
-                            🔔 Alerts
-                        </button>
-                    </div>
-                </div>
+        const BUILDING_COSTS = {
+            bunkers: { name: "Soulcast Bunkers", cost: 150, desc: "Supply Cap +50", scales: true },
+            market: { name: "Grand Market", cost: 250, desc: "Generates 100 Spheres/day", scales: true },
+            workshop: { name: "Artifabrian Workshop", cost: 10000, desc: "Unlocks Fabrial Research" },
+            spy_network: { name: "Spy Network", cost: 7000, desc: "Unlocks Political Intrigue" }
+        };
+
+        const FABRIAL_COSTS = {
+            heatrial: { name: "Heatrial", cost: 2, currency: 'gemhearts', desc: "Bunkers provide +25 Extra Supply" },
+            ledger: { name: "Ledger Fabrial", cost: 2, currency: 'gemhearts', desc: "+10% Income Bonus" }
+        };
+
+        // Time Constants
+        const REAL_MS_PER_HOUR = 3600000; 
+        const FAST_MS_PER_HOUR = 5000;    
+
+        function WarcampGame() {
+            // --- STATE ---
+            const [screen, setScreen] = useState('login'); 
+            const [username, setUsername] = useState('');
+            const [devSpeed, setDevSpeed] = useState(false); 
+            const [buyAmount, setBuyAmount] = useState(1); 
+
+            // Unique ID Counter
+            const idCounter = useRef(0);
+            const generateId = () => {
+                idCounter.current += 1;
+                return idCounter.current;
+            };
+
+            // Time State
+            const [timeToNextDay, setTimeToNextDay] = useState("");
+            const [gameDate, setGameDate] = useState({ year: 1173, month: 1, day: 1 });
+            const [lastProcessedHourId, setLastProcessedHourId] = useState(0);
+
+            const [resources, setResources] = useState({ spheres: 15000, gemhearts: 1 });
+            const [army, setArmy] = useState({ bridgemen: 20, spearmen: 50, archers: 10, shardbearers: 0, chulls: 0 });
+            const [buildings, setBuildings] = useState({ bunkers: 0, market: 0, workshop: 0, spy_network: 0 });
+            const [fabrials, setFabrials] = useState({ heatrial: false, ledger: false });
+            
+            // Refs
+            const buildingsRef = useRef(buildings);
+            const fabrialsRef = useRef(fabrials);
+            const armyRef = useRef(army);
+            const resourcesRef = useRef(resources);
+
+            // Sync Refs
+            useEffect(() => { buildingsRef.current = buildings; }, [buildings]);
+            useEffect(() => { fabrialsRef.current = fabrials; }, [fabrials]);
+            useEffect(() => { armyRef.current = army; }, [army]);
+            useEffect(() => { resourcesRef.current = resources; }, [resources]);
+
+            // Features
+            const [arena, setArena] = useState({ level: 1, xp: 0, hp: 3, maxHp: 3, wins: 0, maxThrill: 10 });
+            const [logs, setLogs] = useState([]);
+            const [activeTab, setActiveTab] = useState('build');
+            
+            // Missions & Plateau Runs
+            const [showDeployModal, setShowDeployModal] = useState(false);
+            const [deployMode, setDeployMode] = useState('normal'); 
+            const [activeMissions, setActiveMissions] = useState([]); 
+            const [deploySquad, setDeploySquad] = useState({ bridgemen: 0, spearmen: 0, archers: 0, shardbearers: 0, chulls: 0 });
+            
+            // Plateau Run State
+            const [plateauEvent, setPlateauEvent] = useState(null); 
+
+            // Duel State
+            const [activeDuel, setActiveDuel] = useState(null);
+
+            // --- CALCULATIONS ---
+            const currentSupply = Object.values(army).reduce((a, b) => a + b, 0);
+            const supplyPerBunker = fabrials.heatrial ? 75 : 50;
+            const maxSupply = 100 + (buildings.bunkers * supplyPerBunker);
+            const isSupplyBlocked = currentSupply >= maxSupply;
+
+            // Helper to calculate troops NOT on missions
+            const getAvailableTroops = () => {
+                const deployed = { bridgemen: 0, spearmen: 0, archers: 0, shardbearers: 0, chulls: 0 };
                 
-                <div class="flex gap-4 warcamp-panel p-4 px-6 overflow-x-auto w-full md:w-auto">
-                    <div class="text-center min-w-[70px]">
-                        <span class="block text-[10px] uppercase text-slate-400">Spheres</span>
-                        <span id="res-spheres" class="text-lg font-bold text-yellow-500">15000</span>
-                    </div>
-                    <div class="text-center min-w-[70px]">
-                        <span class="block text-[10px] uppercase text-slate-400">Gemhearts</span>
-                        <span id="res-gemhearts" class="text-lg font-bold gem-stat">0</span>
-                    </div>
-                    <div class="text-center min-w-[70px]">
-                        <span class="block text-[10px] uppercase text-slate-400">Provisions</span>
-                        <div class="text-lg font-bold">
-                            <span id="res-pop-current" class="text-white">0</span>/<span id="res-food-cap" class="text-green-500">150</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+                activeMissions.forEach(mission => {
+                    if (!mission.completed) {
+                        Object.keys(mission.squad).forEach(type => {
+                            deployed[type] += (mission.squad[type] || 0);
+                        });
+                    }
+                });
 
-        <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            <!-- LEFT: Tabs -->
-            <section class="lg:col-span-4 space-y-6">
-                <div class="warcamp-panel overflow-hidden">
-                    <div class="flex border-b border-slate-700">
-                        <button onclick="game.setTab('build')" id="tab-build" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider active">Logistics</button>
-                        <button onclick="game.setTab('military')" id="tab-military" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider">Barracks</button>
-                        <button onclick="game.setTab('spy')" id="tab-spy" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-green-400">Espionage</button>
-                        <button onclick="game.setTab('fabrial')" id="tab-fabrial" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-purple-400">Fabrials</button>
-                        <button onclick="game.setTab('arena')" id="tab-arena" class="tab-btn flex-1 py-3 text-sm font-bold uppercase tracking-wider hidden text-red-400">Arena</button>
-                    </div>
+                const available = {};
+                Object.keys(army).forEach(type => {
+                    available[type] = Math.max(0, army[type] - deployed[type]);
+                });
+                
+                return available;
+            };
 
-                    <!-- LOGISTICS TAB -->
-                    <div id="panel-build" class="p-6 space-y-4">
-                        <h2 class="text-sm font-cinzel text-slate-400 mb-2">INFRASTRUCTURE</h2>
-                        <div class="space-y-3 max-h-80 overflow-y-auto pr-2">
-                            <!-- Black Market Unlock -->
-                            <div id="black-market-option" class="hidden bg-slate-900/80 p-3 rounded border border-yellow-700/50">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm text-yellow-500">Gemheart Exchange</p>
-                                    <button onclick="game.buyGemheart()" class="bg-yellow-900/40 hover:bg-yellow-800 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-[10px]">10,000 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">Purchase a Gemheart from illicit traders.</p>
-                            </div>
+            const availableTroops = getAvailableTroops();
 
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Spy Network</p>
-                                    <button id="btn-build-spy_network" onclick="game.build('spy_network')" class="btn-alethi px-3 py-1 rounded text-[10px]">5000 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">Unlocks Espionage Units | Owned: <span id="own-spy_network">0</span></p>
-                            </div>
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Research Library</p>
-                                    <button id="btn-build-research_library" onclick="game.build('research_library')" class="btn-alethi px-3 py-1 rounded text-[10px]">10000 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">Unlocks Fabrial Technology | Owned: <span id="own-research_library">0</span></p>
-                            </div>
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Grand Market</p>
-                                    <button id="btn-build-market" onclick="game.build('market')" class="btn-alethi px-3 py-1 rounded text-[10px]">250 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400 font-bold text-yellow-500">+100 S/Day Income | Owned: <span id="own-market">0</span></p>
-                            </div>
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Soulcast Bunkers</p>
-                                    <button id="btn-build-soulcaster" onclick="game.build('soulcaster')" class="btn-alethi px-3 py-1 rounded text-[10px]">150 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">+50 Provision Cap | Owned: <span id="own-soulcaster">0</span></p>
-                            </div>
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Military Camp</p>
-                                    <button id="btn-build-training_camp" onclick="game.build('training_camp')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">+10% Army Power | Owned: <span id="own-training_camp">0</span></p>
-                            </div>
-                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
-                                <div class="flex justify-between items-center mb-1">
-                                    <p class="font-bold text-sm">Ardent Monastery</p>
-                                    <button id="btn-build-monastery" onclick="game.build('monastery')" class="btn-alethi px-3 py-1 rounded text-[10px]">7000 S</button>
-                                </div>
-                                <p class="text-[10px] text-slate-400">+5% Survival Rate | Owned: <span id="own-monastery">0</span></p>
-                            </div>
-                        </div>
-                    </div>
+            // --- GAME LOOP & TIME ---
+            useEffect(() => {
+                if (screen !== 'game') return;
 
-                    <!-- BARRACKS TAB -->
-                    <div id="panel-military" class="hidden p-6 space-y-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <h2 class="text-sm font-cinzel text-slate-400">RECRUITMENT</h2>
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] text-slate-500 font-bold">Bulk:</span>
-                                <input type="number" id="recruit-amount" value="10" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded text-center text-xs py-1 text-cyan-400 font-bold">
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <button onclick="game.recruit('bridgecrews')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Hire Bridgecrew</span> <span>5 S</span>
-                            </button>
-                            <button onclick="game.recruit('spearmen')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Train Spearmen</span> <span>10 S</span>
-                            </button>
-                            <button onclick="game.recruit('archers')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Train Archers</span> <span>15 S</span>
-                            </button>
-                            <button onclick="game.recruit('chulls')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Purchase Chull</span> <span>50 S</span>
-                            </button>
-                            <button onclick="game.recruit('shardbearers')" class="w-full bg-cyan-900 border border-cyan-400 py-2 rounded text-xs flex justify-between px-4">
-                                <span>Equip Shardbearer</span> <span>1 Gemheart</span>
-                            </button>
-                        </div>
-                    </div>
+                const dayDuration = devSpeed ? FAST_MS_PER_HOUR : REAL_MS_PER_HOUR;
+                const now = Date.now();
+                const initialHourId = Math.floor(now / dayDuration);
+                
+                if (lastProcessedHourId === 0) {
+                    setLastProcessedHourId(initialHourId);
+                }
 
-                    <!-- ESPIONAGE TAB -->
-                    <div id="panel-spy" class="hidden p-6 space-y-4">
-                        <h2 class="text-sm font-cinzel text-slate-400 mb-2">GHOSTBLOOD OPERATIONS</h2>
-                        
-                        <!-- RECRUITMENT SECTION -->
-                        <div id="spy-recruit-locked" class="bg-red-900/20 border border-red-900 p-4 rounded text-center hidden">
-                            <p class="text-xs text-red-400 font-bold uppercase">Network Offline</p>
-                            <p class="text-[10px] text-slate-500 mt-1">Build a Spy Network in Logistics.</p>
-                        </div>
+                const tickRate = 1000;
 
-                        <div id="spy-recruit-unlocked" class="hidden space-y-2 mb-4">
-                            <div class="flex justify-between items-center mb-1 border-b border-slate-800 pb-1">
-                                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Recruit Agents</h3>
-                                <div class="flex items-center gap-2">
-                                    <span class="text-[10px] text-slate-500 font-bold">Bulk:</span>
-                                    <input type="number" id="recruit-amount-spy" value="1" min="1" class="w-12 bg-slate-900 border border-slate-700 rounded text-center text-xs py-1 text-green-400 font-bold">
-                                </div>
-                            </div>
-                            <button onclick="game.recruit('noble')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Lighteyes Noble (Pwr 1)</span> <span>50 S</span>
-                            </button>
-                            <button onclick="game.recruit('spy')" class="w-full btn-alethi py-2 rounded text-xs flex justify-between px-4">
-                                <span>Undercity Spy (Pwr 2)</span> <span>150 S</span>
-                            </button>
-                            <button onclick="game.recruit('ghostblood')" class="w-full bg-purple-900/50 hover:bg-purple-800 border border-purple-500/30 py-2 rounded text-xs flex justify-between px-4">
-                                <span>Ghostblood Agent (Pwr 5)</span> <span>600 S</span>
-                            </button>
-                        </div>
+                const timer = setInterval(() => {
+                    const now = Date.now();
+                    const currentHourId = Math.floor(now / dayDuration);
 
-                        <div class="bg-slate-900/60 p-4 rounded border border-slate-700 space-y-3">
-                            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1">Missions</h3>
-                            <select id="spy-target" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-xs">
-                                <option value="sadeas">Highprince Sadeas</option>
-                                <option value="vargo">Highprince Taravangian</option>
-                                <option value="sebarial">Highprince Sebarial</option>
-                            </select>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="game.spyAction('military')" class="bg-slate-700 hover:bg-slate-600 py-2 rounded text-[10px] uppercase font-bold transition-colors">Scan Military</button>
-                                <button onclick="game.spyAction('resources')" class="bg-slate-700 hover:bg-slate-600 py-2 rounded text-[10px] uppercase font-bold transition-colors">Scan Resources</button>
-                                <button onclick="game.spyAction('fabrials')" class="bg-purple-900/40 hover:bg-purple-800 py-2 rounded text-[10px] uppercase font-bold transition-colors border border-purple-500/20">Scan Tech</button>
-                                <button onclick="game.spyAction('champion')" class="bg-red-900/40 hover:bg-red-800 py-2 rounded text-[10px] uppercase font-bold transition-colors border border-red-500/20">Scan Champion</button>
-                            </div>
-                            <div class="grid grid-cols-1 gap-2 mt-2 pt-2 border-t border-slate-700">
-                                <button onclick="game.spyAction('steal_spheres')" class="bg-yellow-900/50 hover:bg-yellow-800 py-2 rounded text-[10px] uppercase font-bold transition-colors text-yellow-200">Heist Spheres (1.5x Power)</button>
-                                <button onclick="game.spyAction('steal_shards')" class="bg-cyan-900/50 hover:bg-cyan-800 py-2 rounded text-[10px] uppercase font-bold transition-colors text-cyan-200">Seize Shards (3.0x Power)</button>
-                            </div>
-                        </div>
-                    </div>
+                    const totalDays = currentHourId; 
+                    const year = 1173 + Math.floor(totalDays / (24 * 7));
+                    const month = Math.floor((totalDays % (24 * 7)) / 24) + 1;
+                    const day = (totalDays % 24) + 1;
+                    setGameDate({ year, month, day });
 
-                    <!-- FABRIAL TAB -->
-                    <div id="panel-fabrial" class="hidden p-6 space-y-4">
-                        <h2 class="text-sm font-cinzel text-purple-400 mb-2 border-b border-purple-900/50 pb-2">FABRIAL ENGINEERING</h2>
-                        <div class="space-y-3">
-                            <!-- Heatrial -->
-                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                                <div>
-                                    <p class="text-xs font-bold text-purple-200">Heatrial System</p>
-                                    <p class="text-[10px] text-slate-400">Increases Provision Cap by 1.5x (Stackable) | Owned: <span id="owned-heatrial">0</span></p>
-                                </div>
-                                <button id="btn-fab-heatrial" onclick="game.constructFabrial('heatrial')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                    3 Gemhearts
-                                </button>
-                            </div>
-                            <!-- Synchronized Ledger -->
-                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                                <div>
-                                    <p class="text-xs font-bold text-purple-200">Synchronized Ledger</p>
-                                    <p class="text-[10px] text-slate-400">Increases Market Income by 1.5x (Stackable) | Owned: <span id="owned-ledger">0</span></p>
-                                </div>
-                                <button id="btn-fab-ledger" onclick="game.constructFabrial('ledger')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                    5 Gemhearts
-                                </button>
-                            </div>
-                            <!-- Gravity-Spanning Rig -->
-                            <div class="bg-purple-900/20 border border-purple-800 p-3 rounded flex justify-between items-center">
-                                <div>
-                                    <p class="text-xs font-bold text-purple-200">Gravity-Spanning Rig</p>
-                                    <p class="text-[10px] text-slate-400">Increases Army Speed by 2.0x (Stackable) | Owned: <span id="owned-gravity_lift">0</span></p>
-                                </div>
-                                <button id="btn-fab-gravity_lift" onclick="game.constructFabrial('gravity_lift')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-3 py-2 rounded font-bold">
-                                    7 Gemhearts
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    const msUntilNext = (currentHourId + 1) * dayDuration - now;
+                    const mins = Math.floor(msUntilNext / 60000);
+                    const secs = Math.floor((msUntilNext % 60000) / 1000);
+                    setTimeToNextDay(`${mins}m ${secs}s`);
 
-                    <!-- ARENA TAB -->
-                    <div id="panel-arena" class="hidden p-6 space-y-4">
-                        <div class="flex justify-between items-center border-b border-red-900 pb-2">
-                            <h2 class="text-sm font-cinzel text-red-400">PROVING GROUNDS</h2>
-                            <div class="text-right">
-                                <p class="text-[10px] text-slate-400">Champion Level: <span id="arena-level" class="text-white font-bold">1</span></p>
-                                <p class="text-[10px] text-slate-400">Health: <span id="arena-hp" class="text-green-400 font-bold">3/3</span></p>
-                                <p class="text-[10px] text-slate-400">Thrill: <span id="arena-thrill" class="text-red-400 font-bold">10/10</span></p>
-                                <p class="text-[10px] text-slate-400">Duels Remaining: <span id="arena-daily" class="text-cyan-400 font-bold">5/5</span></p>
-                            </div>
-                        </div>
+                    if (currentHourId > lastProcessedHourId && lastProcessedHourId !== 0) {
+                        setLastProcessedHourId(currentHourId);
+                        processDailyIncome();
+                        checkForPlateauRun(); 
+                    }
 
-                        <!-- LOBBY VIEW -->
-                        <div id="arena-lobby" class="text-center space-y-4 py-8">
-                            <p class="text-xs text-slate-300 italic">"Command the Thrill. Break your opponent."</p>
-                            <button onclick="game.startDuel()" class="bg-red-800 hover:bg-red-700 text-white font-bold px-6 py-3 rounded border border-red-500 shadow-lg shadow-red-900/20">
-                                FIND OPPONENT
-                            </button>
-                            
-                            <!-- TOURNAMENT BUTTON (Conditional) -->
-                            <div id="tournament-active" class="hidden mt-6 bg-yellow-900/30 border border-yellow-600/50 p-4 rounded text-center animate-pulse">
-                                <h3 class="text-yellow-400 font-bold text-sm mb-2">MONTHLY TOURNAMENT</h3>
-                                <button onclick="game.enterTournament()" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold text-xs px-6 py-2 rounded">
-                                    COMPETE FOR GEMHEART
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- COMBAT VIEW -->
-                        <div id="arena-combat" class="hidden flex flex-col h-full">
-                            <div class="flex justify-between items-center bg-slate-900/50 p-2 rounded mb-4">
-                                <div class="text-left">
-                                    <span class="block text-xs font-bold text-blue-300">YOU</span>
-                                    <span id="combat-player-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
-                                    <span id="combat-player-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
-                                </div>
-                                <div class="text-xs text-slate-500 font-bold">VS</div>
-                                <div class="text-right">
-                                    <span class="block text-xs font-bold text-red-300">ENEMY</span>
-                                    <span id="combat-enemy-hp" class="block text-[10px] text-green-400">HP: 3/3</span>
-                                    <span id="combat-enemy-thrill" class="block text-[10px] text-red-400">Thrill: 10</span>
-                                </div>
-                            </div>
-
-                            <div class="flex-grow bg-black/30 p-2 rounded mb-4 h-32 overflow-y-auto text-[10px] font-mono border border-slate-800" id="combat-log">
-                                <p class="text-slate-500">Duel started. Commit your Thrill...</p>
-                            </div>
-
-                            <div class="bg-slate-800 p-3 rounded border border-slate-600">
-                                <label class="block text-[10px] text-slate-400 mb-1">Push Amount:</label>
-                                <div class="flex gap-2">
-                                    <input type="number" id="thrill-input" min="0" value="1" class="bg-black border border-slate-600 rounded px-2 py-1 text-white text-sm w-16 text-center">
-                                    <button onclick="game.commitThrill()" class="flex-grow bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded uppercase tracking-wider">
-                                        PUSH
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                <!-- MILITARY DETAILS PANEL -->
-                <div class="warcamp-panel p-6">
-                    <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">MILITARY STRENGTH</h2>
-                    <div class="grid grid-cols-2 gap-3 text-xs mb-4">
-                        <div class="stat-card"><span class="text-slate-400">Defense:</span> <span id="stat-power" class="font-bold text-white">0</span></div>
-                        <div class="stat-card"><span class="text-slate-400">Available:</span> <span id="stat-avail" class="font-bold text-green-400">0</span></div>
-                        <div class="stat-card"><span class="text-slate-400">Speed Mod:</span> <span id="stat-speed" class="font-bold text-white">0%</span></div>
-                        <div class="stat-card"><span class="text-slate-400">Spy Power:</span> <span id="stat-agents" class="font-bold text-cyan-400">0</span></div>
-                    </div>
+                    setActiveMissions(prev => prev.map(m => ({ ...m, completed: now >= m.endTime })));
                     
-                    <div class="space-y-1 max-h-48 overflow-y-auto pr-2">
-                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                            <span class="text-slate-400">Bridgecrews</span> <span id="det-bridgecrews">0</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                            <span class="text-slate-400">Spearmen</span> <span id="det-spearmen">0</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                            <span class="text-slate-400">Archers</span> <span id="det-archers">0</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
-                            <span class="text-slate-400">Spies (Total)</span> <span id="det-spies-total" class="text-purple-400">0</span>
-                        </div>
-                        <div class="flex justify-between text-[11px]">
-                            <span class="text-slate-400">Shardbearers</span> <span id="det-shardbearers" class="text-cyan-400">0</span>
-                        </div>
-                         <div class="flex justify-between text-[11px]">
-                            <span class="text-slate-400">Chulls</span> <span id="det-chulls" class="text-yellow-400">0</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
+                    if (plateauEvent && now > plateauEvent.endTime && !plateauEvent.joined) {
+                        setPlateauEvent(null); 
+                        addLog("The Plateau Run has ended.", 'neutral');
+                    }
 
-            <!-- CENTER: Mission -->
-            <section class="lg:col-span-5 space-y-6">
-                <div class="warcamp-panel p-6 h-full flex flex-col">
-                    <h2 class="text-xl font-bold mb-4 border-b border-slate-700 pb-2">🏜️ SHATTERED PLAINS</h2>
+                }, tickRate);
+
+                return () => clearInterval(timer);
+            }, [screen, lastProcessedHourId, devSpeed, plateauEvent]); 
+
+            const processDailyIncome = () => {
+                const currentBuildings = buildingsRef.current;
+                const currentFabrials = fabrialsRef.current;
+                
+                let income = 0;
+                if (currentBuildings.market > 0) income += (currentBuildings.market * 100); 
+                if (currentFabrials.ledger) income = Math.floor(income * 1.1) + 10;
+                
+                setArena(prev => ({ ...prev, hp: prev.maxHp }));
+                addLog(`New Day. Income: +${income} Spheres. Champion fully healed.`, 'neutral');
+
+                setResources(prev => ({
+                    ...prev,
+                    spheres: prev.spheres + income
+                }));
+            };
+
+            const checkForPlateauRun = () => {
+                if (Math.random() < 0.10 && !plateauEvent) {
+                    const duration = devSpeed ? 30000 : 900000; // 15 mins
+                    setPlateauEvent({
+                        startTime: Date.now(),
+                        endTime: Date.now() + duration,
+                        joined: false,
+                        dismissed: false 
+                    });
+                    addLog("CHASMFIEND SPOTTED! Highprinces are mobilizing!", 'warning');
+                }
+            };
+
+            const addLog = (msg, type = 'neutral') => {
+                const colors = { neutral: 'text-slate-300', success: 'text-green-400', danger: 'text-red-400', warning: 'text-yellow-400', rare: 'text-purple-400' };
+                setLogs(prev => [{ id: generateId(), text: msg, color: colors[type] }, ...prev]);
+            };
+
+            const getBuildingCost = (type) => {
+                const stats = BUILDING_COSTS[type];
+                const count = buildings[type];
+                if (stats.scales) {
+                    const tier = Math.floor(count / 10);
+                    return stats.cost * Math.pow(2, tier);
+                }
+                return stats.cost;
+            };
+
+            // --- ACTIONS ---
+            const handleRecruit = (type) => {
+                const stats = TROOP_STATS[type];
+                const amount = buyAmount; 
+                const totalCost = stats.cost * amount;
+
+                if (currentSupply + amount > maxSupply) return addLog(`Not enough supply for ${amount} troops!`, 'danger');
+
+                if (resources[stats.currency] >= totalCost) {
+                    setResources(prev => ({ ...prev, [stats.currency]: prev[stats.currency] - totalCost }));
+                    setArmy(prev => ({ ...prev, [type]: prev[type] + amount }));
+                    addLog(`Recruited ${amount} ${stats.name}`, 'neutral');
                     
-                    <div id="mission-ui" class="flex-grow flex flex-col relative">
+                    if (type === 'shardbearers' && army.shardbearers === 0) {
+                        addLog("Shardbearer acquired! The Proving Grounds are open.", 'rare');
+                        setActiveTab('arena');
+                    }
+                } else {
+                    addLog(`Insufficient ${stats.currency} for ${amount} units`, 'danger');
+                }
+            };
+
+            const handleBuild = (type) => {
+                const stats = BUILDING_COSTS[type];
+                const cost = getBuildingCost(type);
+
+                if (resources.spheres >= cost) {
+                    setResources(prev => ({ ...prev, spheres: prev.spheres - cost }));
+                    setBuildings(prev => ({ ...prev, [type]: prev[type] + 1 }));
+                    if (type === 'bunkers') addLog("Supply Cap Increased.", 'success');
+                    else addLog(`Constructed ${stats.name}`, 'success');
+                    
+                    if (type === 'workshop') setActiveTab('research');
+                    if (type === 'spy_network') setActiveTab('politics');
+                } else {
+                    addLog(`Insufficient Spheres (Need ${cost})`, 'danger');
+                }
+            };
+
+            const handleResearch = (type) => {
+                if (!fabrials[type]) {
+                    const stats = FABRIAL_COSTS[type];
+                    const currency = stats.currency || 'spheres';
+                    if (resources[currency] >= stats.cost) {
+                        setResources(prev => ({ ...prev, [currency]: prev[currency] - stats.cost }));
+                        setFabrials(prev => ({ ...prev, [type]: true }));
+                        addLog(`Researched ${stats.name}`, 'rare');
+                    } else {
+                        addLog(`Insufficient ${currency}`, 'danger');
+                    }
+                }
+            };
+
+            // --- MISSION LOGIC ---
+            const getMissionTime = (type, squad) => {
+                const baseMinutes = type === 'scout' ? 5 : 20;
+                let totalSpeed = 0;
+                let totalCount = 0;
+                
+                Object.keys(squad).forEach(k => {
+                    if (squad[k] > 0) {
+                        totalCount += squad[k];
+                        if (k === 'bridgemen') totalSpeed += squad[k] * 2.0; // 2x speed for bridges
+                        else if (k === 'chulls') totalSpeed += squad[k] * 0.5; // 0.5x speed for chulls
+                        else totalSpeed += squad[k] * 1.0;
+                    }
+                });
+
+                if (totalCount === 0) return baseMinutes;
+
+                // Speed Logic: Base / ( (1 + Bridge%) / (1 + Chull%) )
+                let bridgeCount = squad.bridgemen || 0;
+                let chullCount = squad.chulls || 0;
+                
+                const bridgeBoost = 1 + (bridgeCount * 0.01);
+                const chullDrag = 1 + (chullCount * 0.01);
+                const speedFactor = bridgeBoost / chullDrag;
+
+                const adjustedMinutes = baseMinutes / speedFactor;
+                return Math.max(1, Math.round(adjustedMinutes * 10) / 10);
+            };
+
+            const calculateSquadStats = (squad) => {
+                let rawPower = 0;
+                let totalCarry = 0;
+                let bridgeCount = 0;
+                let chullCount = 0;
+
+                Object.keys(squad).forEach(key => {
+                    const count = squad[key];
+                    if (count > 0) {
+                        if (key !== 'shardbearers') rawPower += (count * TROOP_STATS[key].power);
+                        totalCarry += (count * TROOP_STATS[key].carry);
+                        if (key === 'bridgemen') bridgeCount += count;
+                        if (key === 'chulls') chullCount += count;
+                    }
+                });
+
+                let multiplier = 1;
+                if (squad.shardbearers > 0) multiplier = Math.pow(2, squad.shardbearers);
+                const finalPower = rawPower * multiplier;
+
+                const bridgeBoost = 1 + (bridgeCount * 0.01);
+                const chullDrag = 1 + (chullCount * 0.01);
+                const speedFactor = bridgeBoost / chullDrag;
+
+                return { finalPower, totalCarry, speedFactor };
+            };
+
+            const startMission = (missionType) => {
+                let hasTroops = false;
+                const currentAvailable = getAvailableTroops();
+
+                for (let key of Object.keys(deploySquad)) {
+                    const count = deploySquad[key];
+                    if (count > currentAvailable[key]) {
+                        return alert(`You only have ${currentAvailable[key]} ${TROOP_STATS[key].name} available.`);
+                    }
+                    if (count > 0) hasTroops = true;
+                }
+
+                if (!hasTroops) return alert("Select troops first.");
+
+                const { finalPower, totalCarry, speedFactor } = calculateSquadStats(deploySquad);
+
+                let msDuration;
+                if (missionType === 'plateau') {
+                    const dayDuration = devSpeed ? FAST_MS_PER_HOUR : REAL_MS_PER_HOUR;
+                    const now = Date.now();
+                    const nextDayTime = Math.ceil(now / dayDuration) * dayDuration;
+                    msDuration = nextDayTime - now; 
+                    
+                    setPlateauEvent(prev => ({ ...prev, joined: true }));
+                } else {
+                    const durationMinutes = getMissionTime(missionType, deploySquad);
+                    msDuration = devSpeed ? (durationMinutes * 1000) : (durationMinutes * 60 * 1000); 
+                }
+
+                const cost = missionType === 'scout' ? 50 : 0;
+                if (resources.spheres < cost) return addLog("Not enough spheres for provisions.", 'danger');
+                setResources(p => ({...p, spheres: p.spheres - cost}));
+
+                const newMission = {
+                    id: generateId(),
+                    type: missionType,
+                    endTime: Date.now() + msDuration,
+                    squad: { ...deploySquad },
+                    power: finalPower,
+                    carryScore: totalCarry,
+                    speed: speedFactor, 
+                    completed: false
+                };
+
+                setActiveMissions(prev => [...prev, newMission]);
+                setShowDeployModal(false);
+                setDeploySquad({ bridgemen: 0, spearmen: 0, archers: 0, shardbearers: 0, chulls: 0 }); 
+                
+                if (missionType === 'plateau') addLog("Army deployed for Plateau Run! They will return at daybreak.", 'warning');
+                else addLog(`${missionType === 'scout' ? 'Scouts' : 'Warparty'} departed.`, 'warning');
+            };
+
+            const resolveMission = (mission) => {
+                setActiveMissions(prev => prev.filter(m => m.id !== mission.id));
+
+                if (mission.type === 'scout') {
+                    const spheres = 100 + (mission.carryScore * 0.5);
+                    setResources(p => ({ ...p, spheres: p.spheres + spheres }));
+                    addLog(`Scouts returned. Found ${Math.floor(spheres)} spheres.`, 'success');
+                } 
+                else if (mission.type === 'plateau') {
+                    const parshendiPower = 300 + Math.floor(Math.random() * 500); 
+                    setPlateauEvent(null); 
+
+                    if (mission.power >= parshendiPower) {
+                        const rivalSpeed = 1.0 + (Math.random() * 0.8); 
+                        const baseLoot = Math.floor(Math.random() * 800) + 400;
+                        const bonusLoot = baseLoot * (mission.carryScore * 0.01);
+                        const totalSpheres = Math.floor(baseLoot + bonusLoot);
                         
-                        <!-- NEW MISSIONS MENU -->
-                        <div id="active-deployments" class="mb-4 space-y-2">
-                            <!-- Populated by JS -->
-                        </div>
+                        let gemheartWon = false;
+                        if (mission.speed > rivalSpeed) {
+                            gemheartWon = true;
+                            setResources(p => ({ ...p, gemhearts: p.gemhearts + 1 }));
+                        }
 
-                        <div class="grid grid-cols-2 gap-2 mb-4">
-                            <button onclick="game.openDeployModal('scout')" class="bg-slate-700 hover:bg-slate-600 p-3 rounded text-left border border-slate-600">
-                                <span class="block text-xs font-bold text-slate-200">Scouting Expedition</span>
-                                <span class="block text-[10px] text-slate-400">Duration: 3 Days</span>
-                            </button>
-                            <button onclick="game.openDeployModal('attack')" class="bg-red-900/40 hover:bg-red-900/60 p-3 rounded text-left border border-red-900/50">
-                                <span class="block text-xs font-bold text-red-300">Attack Parshendi</span>
-                                <span class="block text-[10px] text-red-400">High Risk | Chance: Gemheart</span>
-                            </button>
-                        </div>
+                        setResources(p => ({ ...p, spheres: p.spheres + totalSpheres }));
+                        
+                        addLog(`Plateau Secured! Parshendi Strength: ${parshendiPower}.`, 'success');
+                        addLog(`Loot: ${totalSpheres} Spheres.`, 'success');
+                        
+                        if (gemheartWon) {
+                            addLog(`FASTEST ARMY! (Spd ${mission.speed.toFixed(2)}x vs Rival ${rivalSpeed.toFixed(2)}x). Gemheart Secured!`, 'rare');
+                        } else {
+                            addLog(`Too Slow. (Spd ${mission.speed.toFixed(2)}x vs Rival ${rivalSpeed.toFixed(2)}x). Sadeas took the gemheart.`, 'warning');
+                        }
+                        
+                        applyCasualties(mission.squad, 0.15); 
+                    } else {
+                        addLog(`Defeat! Parshendi Strength ${parshendiPower} overwhelmed us.`, 'danger');
+                        applyCasualties(mission.squad, 0.5); 
+                    }
+                }
+                else {
+                    const enemyPower = Math.floor(Math.random() * 450) + 50;
+                    if (mission.power >= enemyPower) {
+                        const baseLoot = Math.floor(Math.random() * 500) + 200;
+                        const bonusLoot = baseLoot * (mission.carryScore * 0.01);
+                        const totalSpheres = Math.floor(baseLoot + bonusLoot);
+                        setResources(p => ({ ...p, spheres: p.spheres + totalSpheres }));
+                        addLog(`Victory! Loot: ${totalSpheres} Spheres.`, 'success');
+                        applyCasualties(mission.squad, 0.1);
+                    } else {
+                        addLog("Defeat! The army was routed.", 'danger');
+                        applyCasualties(mission.squad, 0.4);
+                    }
+                }
+            };
 
-                        <!-- PLATEAU RUN EVENT -->
-                        <div id="plateau-event-container" class="hidden bg-slate-900/80 p-4 rounded-lg border border-orange-500/50 mb-4 relative overflow-hidden">
-                            <div id="plateau-label" class="absolute top-0 right-0 bg-orange-600 text-[10px] font-bold px-2 py-1">WARNING</div>
-                            <h3 class="text-lg font-bold text-orange-400 mb-1">PLATEAU RUN DETECTED</h3>
-                            <p id="plateau-timer" class="text-2xl font-bold text-white text-center my-4">00:30</p>
-                            
-                            <div id="plateau-actions" class="hidden">
-                                <p class="text-xs text-center text-slate-300 mb-2">Coalition forming. Muster your forces.</p>
-                                <button id="btn-muster" onclick="game.openDeployModal('run')" class="w-full btn-alethi py-3 rounded font-bold text-sm mb-2">
-                                    MUSTER FORCES
-                                </button>
+            const applyCasualties = (squad, risk) => {
+                setArmy(prev => {
+                    const newArmy = { ...prev };
+                    Object.keys(squad).forEach(type => {
+                        const count = squad[type];
+                        const stats = TROOP_STATS[type];
+                        const lost = Math.floor(count * (risk * (1 - stats.survival)));
+                        if (lost > 0) {
+                            newArmy[type] = Math.max(0, newArmy[type] - lost);
+                            addLog(`Lost ${lost} ${stats.name}`, 'danger');
+                        }
+                    });
+                    return newArmy;
+                });
+            };
+
+            // --- ARENA ---
+            const startDuel = () => {
+                if (arena.hp <= 0) return addLog("Champion is too wounded. Wait for next day.", 'danger');
+                setActiveDuel({
+                    enemyHp: arena.maxHp,
+                    enemyThrill: arena.maxThrill,
+                    playerThrill: arena.maxThrill,
+                    round: 1,
+                    logs: ["Duel started! Place your bet."]
+                });
+            };
+
+            const handleDuelRound = (playerBet) => {
+                if (!activeDuel) return;
+                const enemyBet = Math.ceil(Math.random() * activeDuel.enemyThrill); 
+                
+                let newLog = `Round ${activeDuel.round}: You bet ${playerBet}, Enemy bet ${enemyBet}.`;
+                let pThrill = activeDuel.playerThrill - playerBet;
+                let eThrill = activeDuel.enemyThrill - enemyBet;
+                let pHp = arena.hp;
+                let eHp = activeDuel.enemyHp;
+                
+                if (playerBet > enemyBet) {
+                    eHp -= 1;
+                    newLog += " You strike!";
+                } else if (enemyBet > playerBet) {
+                    pHp -= 1;
+                    newLog += " You were hit!";
+                } else {
+                    newLog += " Weapons clash! No damage.";
+                }
+
+                if (pHp <= 0) {
+                     setArena(p => ({ ...p, hp: 0 }));
+                     addLog("Duel Lost. Your champion collapsed.", 'danger');
+                     setActiveDuel(null);
+                } else if (eHp <= 0) {
+                     const xpGain = 10;
+                     let newLevel = arena.level;
+                     let newXp = arena.xp + xpGain;
+                     let newMaxHp = arena.maxHp;
+                     let newMaxThrill = arena.maxThrill;
+                     let leveledUp = false;
+                     
+                     if (newXp >= newLevel * 20) {
+                         newLevel++; newXp = 0; newMaxHp++; newMaxThrill++; leveledUp = true; 
+                     }
+                     
+                     setArena(p => ({ 
+                         ...p, 
+                         hp: leveledUp ? newMaxHp : pHp, 
+                         wins: p.wins + 1, 
+                         xp: newXp, 
+                         level: newLevel, 
+                         maxHp: newMaxHp, 
+                         maxThrill: newMaxThrill
+                     }));
+                     
+                     setResources(p => ({ ...p, spheres: p.spheres + 1000 }));
+
+                     addLog(leveledUp ? "RANK UP! 1000 Spheres won!" : "Victory! 1000 Spheres won!", 'success');
+                     setActiveDuel(null);
+                } else {
+                    setArena(p => ({ ...p, hp: pHp })); 
+                    setActiveDuel(p => ({
+                        ...p,
+                        enemyHp: eHp,
+                        playerThrill: pThrill,
+                        enemyThrill: eThrill,
+                        round: p.round + 1,
+                        logs: [newLog, ...p.logs]
+                    }));
+                }
+            };
+
+            // --- RENDER ---
+            if (screen === 'login') {
+                return (
+                    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-slate-200 font-sans">
+                        <div className="max-w-md w-full bg-slate-800 p-8 rounded-lg border-2 border-blue-900 shadow-2xl text-center">
+                            <h1 className="text-3xl font-serif text-blue-400 mb-2 tracking-widest uppercase">The Shattered Plains</h1>
+                            <p className="text-slate-400 mb-6 italic">Enter your name, Highprince.</p>
+                            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white text-center mb-4 focus:border-blue-500 outline-none" placeholder="Highprince Name" />
+                            <button onClick={() => { if(username) { setScreen('game'); }}} className="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded font-bold text-lg flex items-center justify-center gap-2"><Crown size={20} /> ENTER COMMAND</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            const squadStats = calculateSquadStats(deploySquad);
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-slate-200 font-sans p-4 md:p-8 relative">
+                    
+                    {/* PLATEAU POPUP */}
+                    {plateauEvent && !plateauEvent.joined && !plateauEvent.dismissed && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-red-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+                            <div className="bg-slate-900 border-4 border-red-600 p-8 rounded-xl shadow-2xl max-w-2xl w-full text-center relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>
+                                <div className="absolute bottom-0 left-0 w-full h-1 bg-red-500 animate-pulse"></div>
+                                <AlertTriangle size={64} className="mx-auto text-red-500 mb-4 animate-bounce" />
+                                <h2 className="text-4xl font-black text-red-100 mb-2 font-serif tracking-widest uppercase">Chasmfiend Spotted</h2>
+                                <p className="text-xl text-red-300 mb-8 italic">A Greatshell has been sighted. The race for the Gemheart begins!</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button onClick={() => setPlateauEvent(prev => ({...prev, dismissed: true}))} className="py-4 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 font-bold uppercase tracking-wider transition-colors">Later</button>
+                                    <button onClick={() => { setDeployMode('plateau'); setShowDeployModal(true); }} className="py-4 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xl shadow-[0_0_20px_rgba(220,38,38,0.5)] uppercase tracking-wider transition-transform hover:scale-105">Mobilize Army</button>
+                                </div>
                             </div>
+                        </div>
+                    )}
 
-                            <!-- LEADERBOARD (MUSTER PHASE) -->
-                            <div id="muster-leaderboard" class="hidden mt-4 border-t border-slate-700 pt-2">
-                                <h4 class="text-[10px] font-bold text-slate-400 mb-1">PROJECTED SPEEDS</h4>
-                                <div id="leaderboard-content" class="space-y-1"></div>
+                    {/* DUEL MODAL */}
+                    {activeDuel && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+                            <div className="bg-slate-900 border-2 border-yellow-600 p-6 rounded-xl max-w-md w-full shadow-2xl">
+                                <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                                    <h2 className="text-2xl font-serif text-yellow-500 flex items-center gap-2"><Sword/> Round {activeDuel.round}</h2>
+                                </div>
+                                <div className="flex justify-between mb-8">
+                                    <div className="text-center w-1/2 border-r border-slate-700 pr-2">
+                                        <span className="block text-xs uppercase text-slate-400 mb-1">Your Champion</span>
+                                        <div className="text-3xl font-bold text-green-400">{arena.hp} <span className="text-sm text-slate-600">/ {arena.maxHp} HP</span></div>
+                                        <div className="mt-2 text-yellow-400 font-mono flex items-center justify-center gap-1"><Flame size={14}/> {activeDuel.playerThrill} Thrill</div>
+                                    </div>
+                                    <div className="text-center w-1/2 pl-2">
+                                        <span className="block text-xs uppercase text-slate-400 mb-1">Enemy</span>
+                                        <div className="text-3xl font-bold text-red-400">{activeDuel.enemyHp} <span className="text-sm text-slate-600">/ {arena.maxHp} HP</span></div>
+                                        <div className="mt-2 text-red-400 font-mono flex items-center justify-center gap-1"><Flame size={14}/> {activeDuel.enemyThrill} Thrill</div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2 mb-6">
+                                    <p className="text-sm text-center text-slate-300 mb-2">How much Thrill do you bet?</p>
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {Array.from({ length: activeDuel.playerThrill + 1 }, (_, i) => i).map(amt => (
+                                            <button key={amt} onClick={() => handleDuelRound(amt)} className="bg-slate-800 hover:bg-yellow-700 border border-slate-600 rounded py-2 font-bold transition-colors text-sm">{amt}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="bg-black/50 p-3 rounded h-32 overflow-y-auto text-xs font-mono border border-slate-800">
+                                     {activeDuel.logs.map((l, i) => <div key={i} className="mb-1 text-slate-300">{`> ${l}`}</div>)}
+                                </div>
+                                <button onClick={() => { setActiveDuel(null); }} className="mt-4 w-full text-xs text-slate-500 hover:text-slate-300">Surrender (Flee)</button>
                             </div>
                         </div>
+                    )}
 
-                        <div id="game-log" class="h-32 overflow-y-auto bg-black/30 p-4 rounded text-[11px] font-mono mt-auto border border-slate-800">
-                            <div class="log-entry">System offline. Please authenticate.</div>
+                    {/* PASSIVE BANNER */}
+                    {plateauEvent && !plateauEvent.joined && plateauEvent.dismissed && (
+                        <div className="max-w-6xl mx-auto mb-4 bg-red-900/40 border border-red-500 p-4 rounded flex justify-between items-center animate-pulse">
+                            <div className="flex items-center gap-3">
+                                <AlertTriangle className="text-red-500" size={24} />
+                                <div>
+                                    <h2 className="font-bold text-red-200 text-lg uppercase tracking-wider">Event Active</h2>
+                                    <p className="text-xs text-red-300">Chasmfiend hunt in progress.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setDeployMode('plateau'); setShowDeployModal(true); }} className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded shadow-lg uppercase tracking-widest text-sm">Join</button>
                         </div>
-                    </div>
-                </div>
-            </section>
+                    )}
 
-            <!-- RIGHT: Interactions -->
-            <section class="lg:col-span-3 space-y-6">
-                <div class="warcamp-panel p-6 h-64 flex flex-col">
-                    <h2 class="text-sm font-cinzel text-slate-400 mb-4 border-b border-slate-700 pb-2">SPANREED</h2>
-                    <div id="chat-box" class="flex-grow overflow-y-auto text-[11px] space-y-2 mb-4">
-                        <p><b class="text-blue-400">Dalinar:</b> Watch your flanks. The Parshendi are probing our lines.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <input id="chat-input" type="text" class="bg-slate-800 border-none rounded px-2 py-1 flex-grow text-[11px]" placeholder="Message...">
-                        <button onclick="game.sendChat()" class="btn-alethi px-2 py-1 rounded text-[11px]">Send</button>
-                    </div>
-                </div>
-            </section>
+                    {/* Header */}
+                    <header className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-start gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-blue-400 font-serif tracking-widest uppercase">Highprince {username}</h1>
+                            <div className="text-xs text-slate-400 mt-1 flex gap-4 items-center">
+                                <span className="flex items-center gap-1"><Activity size={12} /> Year {gameDate.year}, Month {gameDate.month}, Day {gameDate.day}</span>
+                                <span className="text-slate-600">|</span>
+                                <span className="text-slate-500 italic">Next Day in: {timeToNextDay}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 p-3 bg-slate-800 rounded border border-slate-700 text-center shadow-lg">
+                            <ResourceDisplay label="Spheres" value={Math.floor(resources.spheres)} color="text-yellow-400" />
+                            <ResourceDisplay label="Gemhearts" value={resources.gemhearts} color="text-purple-400" />
+                            <div className="px-3">
+                                <span className="block text-[10px] uppercase text-slate-400 flex items-center gap-1 justify-center"><Home size={10}/> Supply</span>
+                                <span className={`text-lg font-bold ${isSupplyBlocked ? 'text-red-500 animate-pulse' : 'text-green-400'}`}>
+                                    {currentSupply}/{maxSupply}
+                                </span>
+                            </div>
+                        </div>
+                    </header>
 
-        </main>
-    </div>
+                    <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        {/* Navigation */}
+                        <section className="lg:col-span-4 space-y-4">
+                            <div className="bg-slate-800 rounded border border-slate-700 overflow-hidden shadow-xl">
+                                <div className="grid grid-cols-3 border-b border-slate-700">
+                                    <TabButton id="build" icon={<Hammer size={16}/>} label="Logistics" active={activeTab} set={setActiveTab} />
+                                    <TabButton id="military" icon={<Sword size={16}/>} label="Barracks" active={activeTab} set={setActiveTab} />
+                                    {army.shardbearers > 0 && <TabButton id="arena" icon={<Shield size={16}/>} label="Arena" active={activeTab} set={setActiveTab} />}
+                                    {buildings.workshop > 0 && <TabButton id="research" icon={<Scroll size={16}/>} label="Fabrials" active={activeTab} set={setActiveTab} />}
+                                    {buildings.spy_network > 0 && <TabButton id="politics" icon={<Users size={16}/>} label="Politics" active={activeTab} set={setActiveTab} />}
+                                    <button onClick={() => { setDeployMode('normal'); setShowDeployModal(true); }} className="py-3 flex flex-col items-center justify-center bg-blue-900/20 text-blue-400 hover:text-blue-200 font-bold text-[10px] uppercase tracking-wider col-span-3 border-t border-slate-700 mt-1"><Play size={16} className="mb-1" /> Deploy (Mission)</button>
+                                </div>
+                                <div className="p-4 h-[400px] overflow-y-auto custom-scrollbar">
+                                    {activeTab === 'build' && <div className="space-y-3">{Object.entries(BUILDING_COSTS).map(([key, data]) => (<ActionCard key={key} title={data.name} desc={data.desc} cost={`${getBuildingCost(key)} S`} count={buildings[key]} action={() => handleBuild(key)} />))}</div>}
+                                    {activeTab === 'military' && <div className="space-y-3">
+                                        <div className="flex justify-end gap-2 mb-2 pb-2 border-b border-slate-700"><span className="text-[10px] uppercase text-slate-500 self-center mr-auto">Bulk Recruit:</span>{[1, 10, 100].map(amt => (<button key={amt} onClick={() => setBuyAmount(amt)} className={`px-3 py-1 text-[10px] font-bold rounded transition-colors ${buyAmount === amt ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>x{amt}</button>))}</div>
+                                        {Object.entries(TROOP_STATS).map(([key, data]) => (<ActionCard key={key} title={data.name} desc={data.desc} cost={`${data.cost * buyAmount} ${data.currency === 'spheres' ? 'S' : 'GH'}`} count={army[key]} action={() => handleRecruit(key)} btnColor={key === 'shardbearers' ? 'bg-purple-800' : 'bg-slate-600'} disabled={currentSupply + buyAmount > maxSupply} />))}
+                                        {isSupplyBlocked && <p className="text-xs text-red-400 text-center animate-pulse">SUPPLY BLOCKED: Build more Bunkers!</p>}
+                                    </div>}
+                                    {activeTab === 'arena' && <div className="text-center space-y-4"><div className="bg-red-900/20 p-4 rounded border border-red-800"><h3 className="font-serif text-lg text-red-400">Proving Grounds</h3><div className="flex justify-center gap-6 mb-4 mt-2"><div><span className="block text-xl font-bold">{arena.level}</span><span className="text-[10px] uppercase">Rank</span></div><div><span className="block text-xl font-bold text-green-400">{arena.hp}/{arena.maxHp}</span><span className="text-[10px] uppercase">HP</span></div><div><span className="block text-xl font-bold text-yellow-500">{arena.xp}</span><span className="text-[10px] uppercase">XP</span></div></div><button onClick={startDuel} className="w-full bg-red-700 hover:bg-red-600 py-3 rounded font-bold mb-2 flex items-center justify-center gap-2"><Sword size={18}/> DUEL</button><p className="text-xs text-slate-500 mt-2">Champion recovers HP at the start of each day.</p></div></div>}
+                                    {activeTab === 'research' && <div className="space-y-3">{Object.entries(FABRIAL_COSTS).map(([key, data]) => (<ActionCard key={key} title={data.name} desc={data.desc} cost={`${data.cost} ${data.currency === 'gemhearts' ? 'GH' : 'S'}`} owned={fabrials[key]} action={() => handleResearch(key)} btnColor="bg-indigo-900" />))}</div>}
+                                    {activeTab === 'politics' && <div className="bg-black/20 p-3 rounded border border-slate-700"><div className="flex justify-between mb-2"><span className="font-bold text-red-400">Sadeas</span><span className="text-xs bg-red-900 px-2 rounded">Rival</span></div><button onClick={() => { if (resources.spheres >= 100) { setResources(p => ({...p, spheres: p.spheres - 100})); Math.random() > 0.5 ? addLog("Spy success!", 'success') : addLog("Spy caught.", 'danger'); } }} className="w-full bg-slate-700 py-1 rounded text-xs">Spy (100 S)</button></div>}
+                                </div>
+                            </div>
+                        </section>
 
-    <!-- DEPLOYMENT MODAL -->
-    <div id="deploy-modal" class="modal">
-        <div class="bg-slate-900 border border-slate-600 rounded-lg p-6 w-96 max-w-full m-4 shadow-2xl">
-            <h2 class="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">MUSTER FORCES</h2>
-            <p id="deploy-type-label" class="text-xs text-cyan-400 mb-4 uppercase tracking-widest"></p>
-            
-            <div class="space-y-3 mb-6">
-                <div class="flex justify-between items-center text-[10px] text-slate-400 italic">
-                    <span>Unit Type</span>
-                    <span>Available / Total</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-xs text-slate-300">Bridgecrews</label>
-                    <div class="flex items-center gap-2">
-                        <span id="avail-modal-bridgecrews" class="text-xs text-slate-500">0/0</span>
-                        <input type="number" id="deploy-bridgecrews" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-xs text-slate-300">Spearmen</label>
-                    <div class="flex items-center gap-2">
-                        <span id="avail-modal-spearmen" class="text-xs text-slate-500">0/0</span>
-                        <input type="number" id="deploy-spearmen" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-xs text-slate-300">Archers</label>
-                    <div class="flex items-center gap-2">
-                        <span id="avail-modal-archers" class="text-xs text-slate-500">0/0</span>
-                        <input type="number" id="deploy-archers" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-xs text-slate-300">Shardbearers</label>
-                    <div class="flex items-center gap-2">
-                        <span id="avail-modal-shardbearers" class="text-xs text-slate-500">0/0</span>
-                        <input type="number" id="deploy-shardbearers" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <label class="text-xs text-slate-300">Chulls</label>
-                    <div class="flex items-center gap-2">
-                        <span id="avail-modal-chulls" class="text-xs text-slate-500">0/0</span>
-                        <input type="number" id="deploy-chulls" min="0" value="0" class="w-20 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm text-white">
-                    </div>
-                </div>
-            </div>
+                        {/* Main Content Area */}
+                        <section className="lg:col-span-8 space-y-4">
+                            {activeMissions.length > 0 && (
+                                <div className="bg-slate-800 rounded border border-slate-700 p-4">
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Active Missions</h3>
+                                    <div className="space-y-2">
+                                        {activeMissions.map(m => (
+                                            <div key={m.id} className="bg-black/40 p-3 rounded flex justify-between items-center border border-slate-700">
+                                                <div>
+                                                    <span className={`font-bold text-sm ${m.type==='scout'?'text-yellow-400': m.type==='plateau'?'text-red-500':'text-red-400'}`}>{m.type === 'scout' ? 'SCOUTING' : m.type === 'plateau' ? 'PLATEAU RUN' : 'ASSAULT'}</span>
+                                                    <p className="text-xs text-slate-500">Power: {m.power} | Avg Speed: {m.speed.toFixed(2)}x</p>
+                                                </div>
+                                                {m.completed ? <button onClick={() => resolveMission(m)} className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs font-bold animate-pulse">COMPLETE</button> : <span className="text-xs font-mono text-slate-300"><Clock size={12} className="inline mr-1"/> {Math.ceil((m.endTime - Date.now())/1000/60)}m remaining</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="bg-slate-800 rounded border border-slate-700 p-6 flex flex-col h-[400px] shadow-xl">
+                                <h2 className="text-xl font-bold mb-4 border-b border-slate-700 pb-2 flex items-center gap-2"><Scroll size={20} className="text-slate-400"/> Camp Log</h2>
+                                <div className="flex-1 overflow-y-auto bg-black/30 p-4 rounded text-sm font-mono border border-slate-800 custom-scrollbar">
+                                    {logs.map(log => <div key={log.id} className={`mb-1 ${log.color}`}>{`> ${log.text}`}</div>)}
+                                </div>
+                            </div>
+                        </section>
+                    </main>
 
-            <div class="flex gap-3">
-                <button onclick="game.closeDeployModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded font-bold">CANCEL</button>
-                <button onclick="game.confirmDeploy()" class="flex-1 btn-alethi text-xs py-2 rounded font-bold">DEPLOY ARMY</button>
-            </div>
-        </div>
-    </div>
+                    {/* DEPLOY MODAL */}
+                    {showDeployModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                            <div className={`bg-slate-800 p-6 rounded-lg border-2 ${deployMode === 'plateau' ? 'border-red-500' : 'border-slate-600'} shadow-2xl w-full max-w-lg`}>
+                                <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2"><h2 className={`text-xl font-serif ${deployMode === 'plateau' ? 'text-red-400' : 'text-blue-400'}`}>{deployMode === 'plateau' ? 'JOINT PLATEAU RUN' : 'Deployment'}</h2><button onClick={() => setShowDeployModal(false)}><X size={20} /></button></div>
+                                {deployMode === 'plateau' && <div className="mb-4 bg-red-900/30 p-3 rounded border border-red-800 text-xs text-red-200"><p className="font-bold mb-1 flex items-center gap-2"><Trophy size={14}/> OBJECTIVE: GEMHEART</p><p>This is a race. The Highprince with the <strong>Fastest Army</strong> secures the Gemheart. Slow armies (Chulls) will be left behind.</p></div>}
+                                <div className="space-y-4 mb-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {['bridgemen', 'spearmen', 'archers', 'shardbearers', 'chulls'].map(type => (
+                                            <div key={type} className="flex justify-between items-center">
+                                                <label className="text-xs text-slate-300 capitalize">{type}</label>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-slate-500">{availableTroops[type]} / {army[type]}</span>
+                                                    <input type="number" min="0" max={availableTroops[type]} value={deploySquad[type]} onChange={(e) => { const val = Math.min(parseInt(e.target.value) || 0, availableTroops[type]); setDeploySquad(p => ({...p, [type]: val})); }} className="w-16 bg-black border border-slate-700 rounded px-2 py-1 text-right text-sm outline-none focus:border-blue-500" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-between gap-2 text-xs text-slate-400 bg-black/20 p-2 rounded items-center">
+                                        {deployMode === 'plateau' ? <p className="text-slate-300">Run Duration: <span className="text-white font-bold">Until Daybreak</span></p> : 
+                                        <div className="flex gap-4">
+                                            <p className="text-yellow-400 font-bold">Scout: {getMissionTime('scout', deploySquad)}m</p>
+                                            <p className="text-red-400 font-bold">Attack: {getMissionTime('attack', deploySquad)}m</p>
+                                        </div>}
+                                        <div className="text-right">
+                                            <p className="text-blue-300">Power: <span className="font-bold text-white">{squadStats.finalPower}</span></p>
+                                            <p className="text-green-300">Speed: <span className="font-bold text-white">{squadStats.speedFactor.toFixed(2)}x</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {deployMode === 'plateau' ? <button onClick={() => startMission('plateau')} className="bg-red-600 hover:bg-red-500 py-3 rounded font-bold text-sm text-white uppercase tracking-wider shadow-lg">COMMIT FORCES TO THE RUN</button> : <div className="grid grid-cols-2 gap-3"><button onClick={() => startMission('scout')} className="bg-yellow-700 hover:bg-yellow-600 py-3 rounded font-bold text-sm">SCOUT (50s)</button><button onClick={() => startMission('attack')} className="bg-red-700 hover:bg-red-600 py-3 rounded font-bold text-sm">ATTACK (0s)</button></div>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={() => setDevSpeed(!devSpeed)} className={`fixed bottom-4 right-4 p-2 rounded-full ${devSpeed ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-slate-400'}`} title="Toggle Dev Speed (1 Day = 5s)"><Zap size={20} /></button>
+                </div>
+            );
+        }
+
+        // --- SUB-COMPONENTS ---
+        function ResourceDisplay({ label, value, color }) { return <div className="px-3 border-r border-slate-600 last:border-0"><span className="block text-[10px] uppercase text-slate-400">{label}</span><span className={`text-lg font-bold ${color}`}>{value}</span></div>; }
+        function TabButton({ id, icon, label, active, set }) { return <button onClick={() => set(id)} className={`py-3 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider transition-colors ${active === id ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white bg-slate-800'}`}><div className="mb-1">{icon}</div>{label}</button>; }
+        function ActionCard({ title, desc, cost, count, owned, action, btnColor = 'bg-slate-600', disabled }) { return <div className={`bg-black/20 p-2 rounded border border-slate-700 flex justify-between items-center transition-colors ${disabled ? 'opacity-50' : 'hover:bg-black/30'}`}><div><p className="font-bold text-sm text-slate-200">{title}</p><p className="text-[10px] text-slate-400">{desc}</p></div><div className="text-right">{count !== undefined && <span className="text-xs block mb-1 text-slate-500">Count: {count}</span>}{owned !== undefined && <span className="text-xs block mb-1 text-green-500">{owned ? "Active" : "Locked"}</span>}{!owned && <button onClick={action} disabled={disabled} className={`${btnColor} hover:brightness-110 text-white text-xs px-2 py-1 rounded transition-all disabled:cursor-not-allowed`}>{cost}</button>}</div></div>; }
+
+        // 5. RENDER THE APP
+        const root = createRoot(document.getElementById('root'));
+        root.render(<WarcampGame />);
+    </script>
 </body>
 </html>
