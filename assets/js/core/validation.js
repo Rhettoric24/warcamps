@@ -86,13 +86,13 @@ export function canBuild(gameState, buildingKey) {
 export function canRecruit(gameState, unitType, count = 1) {
     const unitStats = {
         bridgecrews: { cost: 5, provision: 1 },
-        spearmen: { cost: 10, provision: 2 },
-        archers: { cost: 15, provision: 2 },
-        chulls: { cost: 50, provision: 5 },
+        spearmen: { cost: 10, provision: 1 },
+        archers: { cost: 15, provision: 1 },
+        chulls: { cost: 50, provision: 3 },
         shardbearers: { cost: 1, provision: 3, isCurrency: 'gemhearts' },
         noble: { cost: 50, provision: 2 },
-        spy: { cost: 150, provision: 3 },
-        ghostblood: { cost: 600, provision: 5 }
+        spy: { cost: 150, provision: 2 },
+        ghostblood: { cost: 600, provision: 3 }
     };
     
     const stats = unitStats[unitType];

@@ -39,8 +39,13 @@ export function requestNotificationPermission() {
     
     // If already granted or denied, toggle state in localStorage
     if (Notification.permission === "granted") {
-        // Disable notifications
-        localStorage.setItem('notificationsDisabled', 'true');
+        const disabled = localStorage.getItem('notificationsDisabled') === 'true';
+        localStorage.setItem('notificationsDisabled', disabled ? 'false' : 'true');
+        if (disabled) {
+            log("Notifications enabled!", "text-green-400");
+        } else {
+            log("Notifications disabled.", "text-slate-400");
+        }
         updateNotificationButton();
     } else if (Notification.permission === "denied") {
         // Can't re-enable if denied by browser

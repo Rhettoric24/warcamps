@@ -1,5 +1,5 @@
 // Main entry point for Warcamp Simulator
-import { CONSTANTS, NPC_PRINCES, DEV_MODE } from './core/constants.js';
+import { CONSTANTS, NPC_PRINCES, DEV_MODE, BUILDING_DATA } from './core/constants.js';
 import { createGameState, loadGameState, saveGameState } from './core/game-state.js';
 
 // Log DEV_MODE status immediately on load
@@ -13,10 +13,10 @@ if (DEV_MODE) {
 }
 import { log, requestNotificationPermission, updateNotificationButton, triggerNotification, flashScreen } from './core/utils.js';
 import { updateUI, setTab, updateEspionageUI, addReport, updateReportsList, sendSpanreedMessage, updateMessagesList, toggleReportDetails } from './ui/ui-manager.js';
-import { openModal, closeModal, updateModalStats, updateSpyNetwork, toggleTournamentCard, toggleBlackMarket, closeRecapModal, closeMissionModal, openSpanreedModal, closeSpanreedModal, setSpanreedTab } from './ui/modal-manager.js';
+import { openModal, closeModal, updateModalStats, updateSpyNetwork, toggleTournamentCard, toggleBlackMarket, closeRecapModal, closeMissionModal, openSpanreedModal, closeSpanreedModal, setSpanreedTab, openSpyPlanningModal, closeSpyPlanningModal, openOfflineRecapModal, closeOfflineRecapModal } from './ui/modal-manager.js';
 import { recruit, getArmyStats } from './military/military.js';
 import { build, buyGemheart, constructFabrial } from './buildings/buildings.js';
-import { startDuel, commitThrill, enterTournament } from './arena/arena.js';
+import { startDuel, commitThrill, enterTournament, useThrillAmplifier, useHalfShard, useRegenPlate } from './arena/arena.js';
 import { spyAction, processSuspicionDecay } from './espionage/espionage.js';
 import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo } from './events/deployments.js';
 import { spawnEvent, simulateNPCJoin, resolveRun } from './events/plateau-runs.js';
@@ -70,28 +70,65 @@ const gameInstance = {
 
     processOfflineTime() {
         const now = Date.now();
+        const lastActive = this.state.lastActiveTime || this.state.lastTickTime || now;
+        const daysAway = Math.floor((now - lastActive) / CONSTANTS.DAY_MS);
         const elapsed = now - this.state.lastTickTime;
         
         if (elapsed >= CONSTANTS.DAY_MS) {
             const daysPassed = Math.floor(elapsed / CONSTANTS.DAY_MS);
-            this.processDailyTicks(daysPassed, true);
-            this.state.lastTickTime = now;
+            const summary = this.processDailyTicks(daysPassed, true);
+            const completed = this.state.deployments.filter(d => d.returnTime <= now);
+            const missionCounts = completed.reduce((acc, d) => {
+                const key = d.type || 'unknown';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+            const completedTotal = completed.length;
+            this.state.lastTickTime += daysPassed * CONSTANTS.DAY_MS;
             saveGameState(this.username, this);
-            log(`Offline for ${daysPassed} days. Resources updated.`, "text-cyan-400");
+            const totalIncome = (summary.spheresFromGems || 0) + (summary.spheresFromMarkets || 0);
+            const gemText = summary.researchGemsGained > 0
+                ? `, +${summary.researchGemsGained} Gemheart${summary.researchGemsGained === 1 ? '' : 's'} from Research`
+                : '';
+            const missionText = completedTotal > 0
+                ? `, ${completedTotal} mission${completedTotal === 1 ? '' : 's'} completed`
+                : '';
+            log(`Offline for ${daysPassed} days. +${totalIncome.toLocaleString()} spheres${gemText}${missionText}.`, "text-cyan-400");
+
+            addReport(this, 'growth', `Offline catch-up: ${daysPassed} days, +${totalIncome.toLocaleString()} spheres${gemText}${missionText}.`, {
+                days: daysPassed,
+                spheres: totalIncome,
+                fromGems: summary.spheresFromGems || 0,
+                fromMarkets: summary.spheresFromMarkets || 0,
+                gemhearts: summary.researchGemsGained || 0,
+                missions: missionCounts,
+                missionsTotal: completedTotal
+            });
+
+            const recapSummary = {
+                ...summary,
+                daysAway: daysAway,
+                missions: missionCounts,
+                missionsTotal: completedTotal
+            };
+            if (daysAway >= 2) this.showOfflineRecap(recapSummary);
         }
     },
 
     loop() {
         const now = Date.now();
-        if (now - this.state.lastTickTime >= CONSTANTS.DAY_MS) {
-            this.processDailyTicks(1);
-            this.state.lastTickTime = now;
-            saveGameState(this.username, this);
+        const elapsed = now - this.state.lastTickTime;
+        if (elapsed >= CONSTANTS.DAY_MS) {
+            const daysPassed = Math.floor(elapsed / CONSTANTS.DAY_MS);
+            this.processDailyTicks(daysPassed, daysPassed > 1);
+            this.state.lastTickTime += daysPassed * CONSTANTS.DAY_MS;
         }
 
         this.checkPlateau();
         checkDeployments(this);
         updateUI(this);
+        this.state.lastActiveTime = now;
+        saveGameState(this.username, this);
     },
 
     checkPlateau() {
@@ -131,17 +168,35 @@ const gameInstance = {
     },
 
     processDailyTicks(count, isOffline = false) {
+        let researchGemsGained = 0;
+        let spheresFromGemsTotal = 0;
+        let spheresFromMarketsTotal = 0;
         for (let i = 0; i < count; i++) {
             const spheresFromGems = this.state.gemhearts * 75;
             this.state.spheres += spheresFromGems;
+            spheresFromGemsTotal += spheresFromGems;
 
-            let income = this.state.buildings.market * 100;
+            const marketIncome = BUILDING_DATA.market?.income ?? 100;
+            let income = this.state.buildings.market * marketIncome;
             if (this.state.fabrials.ledger > 0) income *= (1 + (0.5 * this.state.fabrials.ledger));
             this.state.spheres += income;
+            spheresFromMarketsTotal += income;
 
-            this.state.arena.dailyDuels = 0;
             // Reset champion HP to full every day
             this.state.arena.hp = this.state.arena.maxHp;
+            
+            // Reset daily arena fabrial uses
+            this.state.arena.thrillAmpUsedToday = false;
+            this.state.arena.halfShardUsedToday = false;
+            this.state.arena.regenPlateUsedToday = false;
+            const researchLibraries = this.state.buildings.research_library || 0;
+            if (researchLibraries > 0) {
+                const chance = 0.05 * researchLibraries;
+                if (Math.random() < chance) {
+                    this.state.gemhearts += 1;
+                    researchGemsGained += 1;
+                }
+            }
             if (!isOffline) {
                 log("A new day! Your champion has recovered.", "text-green-400");
             }
@@ -160,7 +215,7 @@ const gameInstance = {
                     addReport(this, 'growth', report, { spheres: totalIncome, fromGems: spheresFromGems, fromMarkets: income });
                 }
                 
-                const totalDays = Math.floor((Date.now() - this.state.startTime) / CONSTANTS.DAY_MS);
+                const totalDays = this.state.dayCount ?? 0;
                 const dayOfMonth = (totalDays % 24) + 1;
                 const canSpawn = dayOfMonth >= 10 && dayOfMonth <= 22;
 
@@ -181,7 +236,63 @@ const gameInstance = {
                 }
             }
         }
+
+        if (researchGemsGained > 0) {
+            const label = researchGemsGained === 1 ? 'a Gemheart' : `${researchGemsGained} Gemhearts`;
+            if (!isOffline) {
+                log(`Research Library breakthrough: ${label} synthesized.`, "text-purple-400 font-bold");
+                addReport(this, 'growth', `Research Library synthesized ${label}.`, { gemhearts: researchGemsGained });
+            }
+        }
+
+        return {
+            days: count,
+            spheresFromGems: spheresFromGemsTotal,
+            spheresFromMarkets: spheresFromMarketsTotal,
+            researchGemsGained: researchGemsGained
+        };
     },
+
+        showOfflineRecap(summary) {
+            const daysEl = document.getElementById('offline-recap-days');
+            const spheresEl = document.getElementById('offline-recap-spheres');
+            const gemsEl = document.getElementById('offline-recap-gems');
+            const marketsEl = document.getElementById('offline-recap-markets');
+            const missionsEl = document.getElementById('offline-recap-missions');
+            const missionsEmptyEl = document.getElementById('offline-recap-missions-empty');
+
+            const totalIncome = (summary.spheresFromGems || 0) + (summary.spheresFromMarkets || 0);
+            if (daysEl) daysEl.textContent = summary.days;
+            if (spheresEl) spheresEl.textContent = totalIncome.toLocaleString();
+            if (gemsEl) gemsEl.textContent = (summary.spheresFromGems || 0).toLocaleString();
+            if (marketsEl) marketsEl.textContent = (summary.spheresFromMarkets || 0).toLocaleString();
+
+            const researchEl = document.getElementById('offline-recap-research');
+            if (researchEl) {
+                if (summary.researchGemsGained > 0) {
+                    researchEl.textContent = `+${summary.researchGemsGained} Gemheart${summary.researchGemsGained === 1 ? '' : 's'} (Research)`;
+                    researchEl.classList.remove('hidden');
+                } else {
+                    researchEl.classList.add('hidden');
+                }
+            }
+
+            if (missionsEl && missionsEmptyEl) {
+                if (summary.missionsTotal > 0) {
+                    const items = Object.entries(summary.missions || {}).map(([type, count]) => {
+                        return `<div class="flex justify-between"><span class="text-slate-400">${type.toUpperCase()}</span><span class="text-emerald-300 font-bold">${count}</span></div>`;
+                    }).join('');
+                    missionsEl.innerHTML = items;
+                    missionsEl.classList.remove('hidden');
+                    missionsEmptyEl.classList.add('hidden');
+                } else {
+                    missionsEl.classList.add('hidden');
+                    missionsEmptyEl.classList.remove('hidden');
+                }
+            }
+
+            openOfflineRecapModal();
+        },
 
     triggerDefenseEvent() {
         flashScreen('alert');
@@ -250,6 +361,9 @@ const gameInstance = {
     openSpanreedModal: () => openSpanreedModal(),
     closeSpanreedModal: () => closeSpanreedModal(),
     setSpanreedTab: (tab) => setSpanreedTab(tab),
+    openSpyPlanningModal: () => openSpyPlanningModal(),
+    closeSpyPlanningModal: () => closeSpyPlanningModal(),
+    closeOfflineRecapModal: () => closeOfflineRecapModal(),
     sendSpanreedMessage: () => sendSpanreedMessage(gameInstance),
     toggleReportDetails: (detailsId) => toggleReportDetails(detailsId),
     recruit: (type) => recruit(gameInstance, type),
@@ -259,6 +373,9 @@ const gameInstance = {
     startDuel: () => startDuel(gameInstance),
     commitThrill: () => commitThrill(gameInstance),
     enterTournament: () => enterTournament(gameInstance),
+    useThrillAmplifier: () => useThrillAmplifier(gameInstance),
+    useHalfShard: () => useHalfShard(gameInstance),
+    useRegenPlate: () => useRegenPlate(gameInstance),
     spyAction: (action) => spyAction(gameInstance, action),
     openDeployModal: (type) => openDeployModal(gameInstance, type),
     closeDeployModal: () => closeDeployModal(),

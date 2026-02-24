@@ -10,14 +10,9 @@ function getXPForLevel(level) {
 
 export function startDuel(gameState) {
     if (gameState.state.arena.hp <= 0) {
-        log("Champion is injured and cannot fight until tomorrow.", "text-red-500");
+        log("Champion is injured and cannot fight until healed.", "text-red-500");
         return;
     }
-    if (gameState.state.arena.dailyDuels >= 5) {
-        log("Champion is exhausted. Wait for tomorrow.", "text-yellow-400");
-        return;
-    }
-    gameState.state.arena.dailyDuels++;
     gameState.state.activeDuel = {
         playerHp: gameState.state.arena.hp,
         playerMaxHp: gameState.state.arena.maxHp,
@@ -25,7 +20,8 @@ export function startDuel(gameState) {
         enemyHp: Math.max(3, gameState.state.arena.level + 1),
         enemyMaxHp: Math.max(3, gameState.state.arena.level + 1),
         enemyThrill: (gameState.state.arena.maxThrill || 10) + Math.floor(Math.random() * 3),
-        log: ["Duel Started. Place your bids."]
+        log: ["Duel Started. Place your bids."],
+        blockActive: false
     };
 }
 
@@ -34,8 +30,18 @@ export function generateThrillButtons(maxThrill) {
     if (!container) return;
     
     container.innerHTML = '';
-    const maxColumns = Math.min(5, Math.ceil(maxThrill / 2));
+    const maxColumns = Math.min(5, Math.ceil((maxThrill + 1) / 2));
     container.className = `grid gap-2 grid-cols-${maxColumns}`;
+    
+    // Add 0 button first
+    const btn0 = document.createElement('button');
+    btn0.textContent = '0';
+    btn0.className = 'bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded py-2 transition-all';
+    btn0.onclick = () => {
+        window.gameInstance.setThrillBid(0);
+        window.gameInstance.commitThrill();
+    };
+    container.appendChild(btn0);
     
     for (let i = 1; i <= maxThrill; i++) {
         const btn = document.createElement('button');
@@ -67,9 +73,16 @@ export function commitThrill(gameState) {
         msg += "YOU HIT!";
         color = "text-green-400";
     } else if (enemyBid > bid) {
-        gameState.state.activeDuel.playerHp--;
-        msg += "ENEMY HIT!";
-        color = "text-red-400";
+        // Check if Half-Shard block is active
+        if (gameState.state.activeDuel.blockActive) {
+            msg += "BLOCKED BY HALF-SHARD!";
+            color = "text-cyan-400";
+            gameState.state.activeDuel.blockActive = false;
+        } else {
+            gameState.state.activeDuel.playerHp--;
+            msg += "ENEMY HIT!";
+            color = "text-red-400";
+        }
     } else {
         msg += "CLASH!";
         color = "text-yellow-200";
@@ -168,4 +181,79 @@ export function enterTournament(gameState) {
         log("Eliminated from tournament. Better luck next month.", "text-slate-400");
     }
     gameState.state.tournamentActive = false;
+}
+
+// Trade HP for thrill using Thrill Amplifier fabrial
+export function useThrillAmplifier(gameState) {
+    if (!gameState.state.activeDuel) return;
+    const thrillAmpCount = gameState.state.fabrials.thrill_amp || 0;
+    if (thrillAmpCount === 0) {
+        log("No Thrill Amplifiers available!", "text-red-500");
+        return;
+    }
+    if (gameState.state.arena.thrillAmpUsedToday) {
+        log("Thrill Amplifier already used today!", "text-yellow-400");
+        return;
+    }
+    if (gameState.state.activeDuel.playerHp <= 1) {
+        log("Too low on HP to amplify thrill!", "text-red-500");
+        return;
+    }
+    
+    // Trade 1 HP for 3 thrill per amplifier owned
+    const thrillGain = 3 * thrillAmpCount;
+    gameState.state.activeDuel.playerHp -= 1;
+    gameState.state.activeDuel.playerThrill += thrillGain;
+    gameState.state.arena.thrillAmpUsedToday = true;
+    
+    gameState.state.activeDuel.log.push(`<span class="text-purple-400">⚡ Amplified thrill! -1 HP, +${thrillGain} Thrill</span>`);
+    log(`Thrill Amplified: +${thrillGain} thrill`, "text-purple-400");
+}
+
+// Activate Half-Shard to block next attack
+export function useHalfShard(gameState) {
+    if (!gameState.state.activeDuel) return;
+    const halfShardCount = gameState.state.fabrials.half_shard || 0;
+    if (halfShardCount === 0) {
+        log("No Half-Shards available!", "text-red-500");
+        return;
+    }
+    if (gameState.state.arena.halfShardUsedToday) {
+        log("Half-Shard already used today!", "text-yellow-400");
+        return;
+    }
+    if (gameState.state.activeDuel.blockActive) {
+        log("Half-Shard block already active!", "text-yellow-400");
+        return;
+    }
+    
+    gameState.state.activeDuel.blockActive = true;
+    gameState.state.arena.halfShardUsedToday = true;
+    gameState.state.activeDuel.log.push(`<span class="text-cyan-400">🛡️ Half-Shard activated! Next attack blocked.</span>`);
+    log("Half-Shard block active!", "text-cyan-400");
+}
+
+// Manually activate Regeneration Plate to heal champion (once per day)
+export function useRegenPlate(gameState) {
+    const regenPlates = gameState.state.fabrials.regen_plate || 0;
+    if (regenPlates === 0) {
+        log("No Regeneration Plates available!", "text-red-500");
+        return;
+    }
+    if (gameState.state.arena.regenPlateUsedToday) {
+        log("Regeneration Plate already used today!", "text-yellow-400");
+        return;
+    }
+    if (gameState.state.arena.hp >= gameState.state.arena.maxHp) {
+        log("Champion is already at full health!", "text-green-400");
+        return;
+    }
+    
+    const healAmount = regenPlates;
+    const oldHp = gameState.state.arena.hp;
+    gameState.state.arena.hp = Math.min(gameState.state.arena.hp + healAmount, gameState.state.arena.maxHp);
+    const actualHeal = gameState.state.arena.hp - oldHp;
+    gameState.state.arena.regenPlateUsedToday = true;
+    
+    log(`Regeneration Plate: Champion healed +${actualHeal} HP.`, "text-green-400 font-bold");
 }

@@ -6,7 +6,7 @@ export function createGameState() {
         username: null,
         state: {
             spheres: DEV_MODE ? 25000 : 15000,
-            gemhearts: DEV_MODE ? 10 : 0,
+            gemhearts: DEV_MODE ? 10 : 1,
             military: {
                 bridgecrews: 20, spearmen: 100, archers: 0,
                 shardbearers: 0, chulls: 0,
@@ -19,7 +19,9 @@ export function createGameState() {
                 maxHp: 3,
                 maxThrill: 10,
                 wins: 0,
-                dailyDuels: 0
+                thrillAmpUsedToday: false,
+                halfShardUsedToday: false,
+                regenPlateUsedToday: false
             },
             tournamentActive: false,
             activeDuel: null,
@@ -33,7 +35,10 @@ export function createGameState() {
             fabrials: {
                 heatrial: 0,
                 ledger: 0,
-                gravity_lift: 0
+                gravity_lift: 0,
+                regen_plate: 0,
+                thrill_amp: 0,
+                half_shard: 0
             },
             rivals: {
                 // Track suspicion and counter intel on each rival
@@ -43,9 +48,22 @@ export function createGameState() {
             messages: [],
             startTime: Date.now(),
             lastTickTime: Date.now(),
+            lastActiveTime: Date.now(),
             dayCount: 0,
             activeRun: null,
-            pendingDeployType: null
+            pendingDeployType: null,
+            tournament: {
+                registered: false,
+                bracket: null,
+                currentRound: 0,
+                currentMatchId: null,
+                gambits: [null, null, null], // Locked-in choices for my 3 gambits
+                matchHistory: [],
+                placement: null,
+                signupEndsAt: null,
+                roundEndsAt: null
+            },
+            championshipWins: 0
         }
     };
 }
@@ -74,7 +92,8 @@ export function loadGameState(username, gameState) {
         military: { ...gameState.state.military, ...parsed.military },
         buildings: { ...gameState.state.buildings, ...parsed.buildings },
         fabrials: newFabrials,
-        arena: { ...gameState.state.arena, ...parsed.arena }
+        arena: { ...gameState.state.arena, ...parsed.arena },
+        tournament: { ...gameState.state.tournament, ...parsed.tournament }
     };
     if (parsed.activeRun) gameState.state.activeRun = parsed.activeRun;
     if (parsed.deployments) gameState.state.deployments = parsed.deployments;
@@ -82,6 +101,7 @@ export function loadGameState(username, gameState) {
     if (parsed.rivals) gameState.state.rivals = parsed.rivals;
     if (parsed.reports) gameState.state.reports = parsed.reports;
     if (parsed.messages) gameState.state.messages = parsed.messages;
+    if (parsed.tournament) gameState.state.tournament = parsed.tournament;
 
     return true;
 }

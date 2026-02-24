@@ -2,6 +2,7 @@
 import { NPC_PRINCES, SUSPICION_LEVELS, SUSPICION_THRESHOLDS, CONSTANTS } from '../core/constants.js';
 import { getSpyPower } from '../military/military.js';
 import { log } from '../core/utils.js';
+import { openSpyPlanningModal } from '../ui/modal-manager.js';
 import { addReport } from '../ui/ui-manager.js';
 
 // Process daily suspicion decay for all rivals
@@ -114,13 +115,28 @@ export function spyAction(gameState, action) {
     // Determine mission type and timing
     const isSabotage = action === 'sabotage_steal_spheres' || action === 'sabotage_steal_gems';
     const missionDuration = isSabotage ? CONSTANTS.DAY_MS : CONSTANTS.DAY_MS / 2;
+
+    const actionLabelMap = {
+        military: 'Scan Military',
+        resources: 'Scan Resources',
+        fabrials: 'Scan Tech',
+        counter_intel: 'Counter Intel',
+        agents: 'Scan Agents',
+        scan_champion: 'Scan Champion',
+        sabotage_steal_spheres: 'Sabotage: Steal Spheres',
+        sabotage_steal_gems: 'Sabotage: Steal Gemheart'
+    };
+    const actionLabel = actionLabelMap[action] || action;
     
     const spyMission = {
         id: Date.now(),
         type: 'espionage',
         action: action,
+        actionLabel: actionLabel,
         targetKey: targetKey,
+        targetName: target.name,
         myAgents: Math.floor(myAgents),
+        units: { agents: Math.floor(myAgents) },
         returnTime: Date.now() + missionDuration,
         targetAgents: target.agents,
         counterIntelSpent: 0,
@@ -148,7 +164,8 @@ export function spyAction(gameState, action) {
     
     updateSuspicionLevel(gameState, targetKey);
     gameState.state.deployments.push(spyMission);
-    log(`Spies dispatched to ${target.name} (${action}). Suspicion: ${rival.suspicion}/100 (${rival.suspicionLevel}).`, "text-purple-400 italic");
+    log(`Spies dispatched to ${target.name} (${actionLabel}). Suspicion: ${rival.suspicion}/100 (${rival.suspicionLevel}).`, "text-purple-400 italic");
+    openSpyPlanningModal();
 }
 
 export function resolveSpy(gameState, mission) {
@@ -202,6 +219,21 @@ export function resolveSpy(gameState, mission) {
             const gain = Math.floor(15 + Math.random() * 10);
             gainInfo = `+${gain} counter intel`;
             rival.counterIntel += gain;
+        }
+    } else if (action === 'agents') {
+        if (success) {
+            intel = `AGENTS: ${target.agents}`;
+            gainInfo = 'Intel gathered';
+            rival.counterIntel += 5;
+        }
+    } else if (action === 'scan_champion') {
+        if (success) {
+            const fabrialsText = target.championFabrials && target.championFabrials.length > 0 
+                ? target.championFabrials.join(", ") 
+                : "None";
+            intel = `CHAMPION: Level ${target.championLevel} | HP: ${target.championHP}/${target.championMaxHP} | Fabrials: ${fabrialsText}`;
+            gainInfo = 'Intel gathered';
+            rival.counterIntel += 5;
         }
     } else if (action === 'sabotage_steal_spheres') {
         // Sabotage requires higher spy power (1.5x target power)

@@ -3,6 +3,8 @@
 const modals = {
     build: document.getElementById('build-modal'),
     spy: document.getElementById('spy-modal'),
+    spy_planning: document.getElementById('spy-planning-modal'),
+    offline_recap: document.getElementById('offline-recap-modal'),
     fabrial: document.getElementById('fabrial-modal'),
     arena: document.getElementById('arena-modal'),
     deploy: document.getElementById('deploy-modal'),
@@ -18,6 +20,23 @@ export function openModal(system) {
 
 export function closeModal() {
     closeAllModals();
+}
+
+export function openSpyPlanningModal() {
+    if (modals.spy_planning) modals.spy_planning.classList.add('open');
+}
+
+export function closeSpyPlanningModal() {
+    if (modals.spy_planning) modals.spy_planning.classList.remove('open');
+}
+
+export function openOfflineRecapModal() {
+    closeAllModals();
+    if (modals.offline_recap) modals.offline_recap.classList.add('open');
+}
+
+export function closeOfflineRecapModal() {
+    if (modals.offline_recap) modals.offline_recap.classList.remove('open');
 }
 
 function closeAllModals() {
@@ -40,10 +59,6 @@ export function updateModalStats(statsObj) {
         const elem = document.getElementById('arena-thrill-modal');
         if (elem) elem.textContent = statsObj.arenaThrill;
     }
-    if (statsObj.arenaDaily !== undefined) {
-        const elem = document.getElementById('arena-daily-modal');
-        if (elem) elem.textContent = statsObj.arenaDaily;
-    }
 
     // Update fabrial modal counts
     if (statsObj.heatrialOwned !== undefined) {
@@ -57,6 +72,18 @@ export function updateModalStats(statsObj) {
     if (statsObj.gravityLiftOwned !== undefined) {
         const elem = document.getElementById('owned-gravity_lift-modal');
         if (elem) elem.textContent = statsObj.gravityLiftOwned;
+    }
+    if (statsObj.regenPlateOwned !== undefined) {
+        const elem = document.getElementById('owned-regen_plate-modal');
+        if (elem) elem.textContent = statsObj.regenPlateOwned;
+    }
+    if (statsObj.thrillAmpOwned !== undefined) {
+        const elem = document.getElementById('owned-thrill_amp-modal');
+        if (elem) elem.textContent = statsObj.thrillAmpOwned;
+    }
+    if (statsObj.halfShardOwned !== undefined) {
+        const elem = document.getElementById('owned-half_shard-modal');
+        if (elem) elem.textContent = statsObj.halfShardOwned;
     }
 
     // Update building modal counts
