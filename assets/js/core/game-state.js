@@ -52,18 +52,13 @@ export function createGameState() {
             dayCount: 0,
             activeRun: null,
             pendingDeployType: null,
-            tournament: {
-                registered: false,
-                bracket: null,
-                currentRound: 0,
-                currentMatchId: null,
-                gambits: [null, null, null], // Locked-in choices for my 3 gambits
-                matchHistory: [],
-                placement: null,
-                signupEndsAt: null,
-                roundEndsAt: null
+            highstorm: {
+                lastStormDay: -10,
+                daysSinceStorm: 10,
+                nextStormProbability: 0,
+                active: false
             },
-            championshipWins: 0
+            damagedBuildings: {}
         }
     };
 }
@@ -92,8 +87,7 @@ export function loadGameState(username, gameState) {
         military: { ...gameState.state.military, ...parsed.military },
         buildings: { ...gameState.state.buildings, ...parsed.buildings },
         fabrials: newFabrials,
-        arena: { ...gameState.state.arena, ...parsed.arena },
-        tournament: { ...gameState.state.tournament, ...parsed.tournament }
+        arena: { ...gameState.state.arena, ...parsed.arena }
     };
     if (parsed.activeRun) gameState.state.activeRun = parsed.activeRun;
     if (parsed.deployments) gameState.state.deployments = parsed.deployments;
@@ -101,7 +95,6 @@ export function loadGameState(username, gameState) {
     if (parsed.rivals) gameState.state.rivals = parsed.rivals;
     if (parsed.reports) gameState.state.reports = parsed.reports;
     if (parsed.messages) gameState.state.messages = parsed.messages;
-    if (parsed.tournament) gameState.state.tournament = parsed.tournament;
 
     return true;
 }

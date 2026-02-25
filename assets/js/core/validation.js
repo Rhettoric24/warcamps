@@ -2,7 +2,7 @@
 // These functions can be executed client-side for UX feedback
 // and replicated server-side for security
 
-import { BUILDING_DATA, FABRIAL_DATA } from './constants.js';
+import { BUILDING_DATA, FABRIAL_DATA, UNIT_STATS } from './constants.js';
 import { getBuildingCost } from '../buildings/buildings.js';
 import { getArmyStats, getAvailableTroops } from '../military/military.js';
 
@@ -84,34 +84,25 @@ export function canBuild(gameState, buildingKey) {
  * @returns {Object} { valid: boolean, reason: string, cost: number, totalCost: number }
  */
 export function canRecruit(gameState, unitType, count = 1) {
-    const unitStats = {
-        bridgecrews: { cost: 5, provision: 1 },
-        spearmen: { cost: 10, provision: 1 },
-        archers: { cost: 15, provision: 1 },
-        chulls: { cost: 50, provision: 3 },
-        shardbearers: { cost: 1, provision: 3, isCurrency: 'gemhearts' },
-        noble: { cost: 50, provision: 2 },
-        spy: { cost: 150, provision: 2 },
-        ghostblood: { cost: 600, provision: 3 }
-    };
-    
-    const stats = unitStats[unitType];
+    const stats = UNIT_STATS[unitType];
     if (!stats) {
         return { valid: false, reason: `Unknown unit type: ${unitType}` };
     }
     
-    const totalCost = stats.cost * count;
+    const currencyType = (unitType === 'shardbearers') ? 'gemhearts' : 'spheres';
+    const costPerUnit = (unitType === 'shardbearers' && stats.gemheartCost) ? stats.gemheartCost : stats.cost;
+    const totalCost = costPerUnit * count;
     
     // Check resource availability
-    const currencyType = stats.isCurrency || 'spheres';
     const resourceCheck = canAffordResource(gameState, totalCost, currencyType);
     if (!resourceCheck.valid) {
-        return { valid: false, reason: resourceCheck.reason, unitType, count, cost: stats.cost, totalCost };
+        return { valid: false, reason: resourceCheck.reason, unitType, count, cost: costPerUnit, totalCost };
     }
     
     // Check provision capacity
     const armyStats = getArmyStats(gameState, false);
-    const totalProvisionsNeeded = armyStats.pop + (stats.provision * count);
+    const provisionCost = stats.provision || 1;
+    const totalProvisionsNeeded = armyStats.pop + (provisionCost * count);
     if (totalProvisionsNeeded > armyStats.cap) {
         return {
             valid: false,
@@ -130,7 +121,7 @@ export function canRecruit(gameState, unitType, count = 1) {
         count,
         cost: stats.cost,
         totalCost,
-        provisionsUsed: stats.provision * count
+        provisionsUsed: provisionCost * count
     };
 }
 

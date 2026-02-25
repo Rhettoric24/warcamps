@@ -12,14 +12,15 @@ if (DEV_MODE) {
     console.log('Dev mode is OFF. Change DEV_MODE to true in assets/js/core/constants.js');
 }
 import { log, requestNotificationPermission, updateNotificationButton, triggerNotification, flashScreen } from './core/utils.js';
-import { updateUI, setTab, updateEspionageUI, addReport, updateReportsList, sendSpanreedMessage, updateMessagesList, toggleReportDetails } from './ui/ui-manager.js';
+import { updateUI, setTab, updateEspionageUI, addReport, updateReportsList, sendSpanreedMessage, updateMessagesList, toggleReportDetails, openMissionDetails, closeMissionDetailsModal } from './ui/ui-manager.js';
 import { openModal, closeModal, updateModalStats, updateSpyNetwork, toggleTournamentCard, toggleBlackMarket, closeRecapModal, closeMissionModal, openSpanreedModal, closeSpanreedModal, setSpanreedTab, openSpyPlanningModal, closeSpyPlanningModal, openOfflineRecapModal, closeOfflineRecapModal } from './ui/modal-manager.js';
 import { recruit, getArmyStats } from './military/military.js';
-import { build, buyGemheart, constructFabrial } from './buildings/buildings.js';
-import { startDuel, commitThrill, enterTournament, useThrillAmplifier, useHalfShard, useRegenPlate } from './arena/arena.js';
+import { build, buyGemheart, constructFabrial, getEffectiveBuildingBonus } from './buildings/buildings.js';
+import { startDuel, commitThrill, enterTournament, useThrillAmplifier, useHalfShard, useRegenPlate, forfeitDuel } from './arena/arena.js';
 import { spyAction, processSuspicionDecay } from './espionage/espionage.js';
-import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo } from './events/deployments.js';
+import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo, recallMission } from './events/deployments.js';
 import { spawnEvent, simulateNPCJoin, resolveRun } from './events/plateau-runs.js';
+import { checkHighstorm, updateHighstormEffects, repairBuilding } from './events/highstorm.js';
 
 // Create global game instance
 const gameInstance = {
@@ -177,7 +178,8 @@ const gameInstance = {
             spheresFromGemsTotal += spheresFromGems;
 
             const marketIncome = BUILDING_DATA.market?.income ?? 100;
-            let income = this.state.buildings.market * marketIncome;
+            const marketDamageMultiplier = getEffectiveBuildingBonus(this, 'market');
+            let income = this.state.buildings.market * marketIncome * marketDamageMultiplier;
             if (this.state.fabrials.ledger > 0) income *= (1 + (0.5 * this.state.fabrials.ledger));
             this.state.spheres += income;
             spheresFromMarketsTotal += income;
@@ -185,10 +187,10 @@ const gameInstance = {
             // Reset champion HP to full every day
             this.state.arena.hp = this.state.arena.maxHp;
             
-            // Reset daily arena fabrial uses
-            this.state.arena.thrillAmpUsedToday = false;
-            this.state.arena.halfShardUsedToday = false;
-            this.state.arena.regenPlateUsedToday = false;
+            // Reset daily arena fabrial use counts
+            this.state.arena.thrillAmpUseCount = 0;
+            this.state.arena.halfShardUseCount = 0;
+            this.state.arena.regenPlateUseCount = 0;
             const researchLibraries = this.state.buildings.research_library || 0;
             if (researchLibraries > 0) {
                 const chance = 0.05 * researchLibraries;
@@ -203,6 +205,9 @@ const gameInstance = {
             
             // Track day progression for per-day systems
             this.state.dayCount = (this.state.dayCount ?? 0) + 1;
+            
+            // Update highstorm effects (clear expired effects)
+            updateHighstormEffects(this);
             
             // Process suspicion decay for all rivals
             processSuspicionDecay(this);
@@ -226,6 +231,9 @@ const gameInstance = {
                 if (Math.random() < 0.14) {
                     this.triggerDefenseEvent();
                 }
+                
+                // Check for highstorm
+                checkHighstorm(this);
 
                 const dayOfMonth2 = (totalDays % 24) + 1;
                 if (dayOfMonth2 === 12 && !this.state.tournamentActive && !isOffline) {
@@ -372,6 +380,7 @@ const gameInstance = {
     constructFabrial: (type) => constructFabrial(gameInstance, type),
     startDuel: () => startDuel(gameInstance),
     commitThrill: () => commitThrill(gameInstance),
+    forfeitDuel: () => forfeitDuel(gameInstance),
     enterTournament: () => enterTournament(gameInstance),
     useThrillAmplifier: () => useThrillAmplifier(gameInstance),
     useHalfShard: () => useHalfShard(gameInstance),
@@ -380,6 +389,10 @@ const gameInstance = {
     openDeployModal: (type) => openDeployModal(gameInstance, type),
     closeDeployModal: () => closeDeployModal(),
     confirmDeploy: () => confirmDeploy(gameInstance),
+    openMissionDetails: (index) => openMissionDetails(gameInstance, index),
+    closeMissionDetailsModal: () => closeMissionDetailsModal(),
+    recallMission: () => recallMission(gameInstance),
+    repairBuilding: (type) => repairBuilding(gameInstance, type),
     requestNotificationPermission: () => requestNotificationPermission(),
     _updateModalStats: (stats) => updateModalStats(stats),
     _updateSpyNetwork: (unlocked) => updateSpyNetwork(unlocked),

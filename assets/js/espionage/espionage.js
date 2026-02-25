@@ -4,6 +4,7 @@ import { getSpyPower } from '../military/military.js';
 import { log } from '../core/utils.js';
 import { openSpyPlanningModal } from '../ui/modal-manager.js';
 import { addReport } from '../ui/ui-manager.js';
+import { isSpyBonusActive } from '../events/highstorm.js';
 
 // Process daily suspicion decay for all rivals
 export function processSuspicionDecay(gameState) {
@@ -182,9 +183,12 @@ export function resolveSpy(gameState, mission) {
 
     const suspicionMult = getSuspicionMultiplier(rival.suspicionLevel);
     
+    // Apply highstorm spy bonus (2x effective spy power during storm chaos)
+    const stormBonus = isSpyBonusActive(gameState) ? 2.0 : 1.0;
+    
     // Deterministic success: If your spy power meets or beats theirs, you succeed
     // Suspicion reduces your effective spy power
-    const myEffectiveSpyPower = myAgents * suspicionMult;
+    const myEffectiveSpyPower = myAgents * suspicionMult * stormBonus;
     const targetSpyPower = mission.targetAgents || 15;
     const isSabotage = action === 'sabotage_steal_spheres' || action === 'sabotage_steal_gems';
     

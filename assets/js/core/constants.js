@@ -39,14 +39,14 @@ export const NPC_PRINCES = {
 };
 
 export const UNIT_STATS = {
-    bridgecrews: { power: 0.1, survival: 0.25, carry: 0, speed: 0.01, cost: 5 },
-    spearmen: { power: 1, survival: 0.75, carry: 0, speed: 0, cost: 10 },
-    archers: { power: 1, survival: 0.9, carry: 0, speed: 0, cost: 15 },
-    chulls: { power: 0.5, survival: 0.8, carry: 10, speed: -0.025, cost: 50 },
-    shardbearers: { power: 0, survival: 0.99, carry: 0, speed: 0, multiplier: 2.0, cost: 0 },
-    noble: { power: 0, survival: 0.5, cost: 50, spy: 1 },
-    spy: { power: 0, survival: 0.7, cost: 150, spy: 2 },
-    ghostblood: { power: 0, survival: 0.9, cost: 600, spy: 5 }
+    bridgecrews: { power: 0.1, survival: 0.25, carry: 0, speed: 0.01, cost: 5, provision: 1 },
+    spearmen: { power: 1, survival: 0.75, carry: 0, speed: 0, cost: 10, provision: 1 },
+    archers: { power: 1, survival: 0.9, carry: 0, speed: 0, cost: 15, provision: 1 },
+    chulls: { power: 0.5, survival: 0.8, carry: 10, speed: -0.025, cost: 50, provision: 3 },
+    shardbearers: { power: 0, survival: 0.99, carry: 0, speed: 0, multiplier: 2.0, cost: 0, gemheartCost: 1, provision: 3 },
+    noble: { power: 0, survival: 0.5, cost: 50, spy: 1, provision: 2 },
+    spy: { power: 0, survival: 0.7, cost: 150, spy: 2, provision: 2 },
+    ghostblood: { power: 0, survival: 0.9, cost: 600, spy: 5, provision: 3 }
 };
 
 export const BUILDING_DATA = {
@@ -68,4 +68,3 @@ export const FABRIAL_DATA = {
     thrill_amp: { cost: 2, name: "Thrill Amplifier", arena: true },
     half_shard: { cost: 4, name: "Half-Shard", arena: true }
 };
-

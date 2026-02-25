@@ -5,6 +5,7 @@ import { processCasualties, getAvailableTroops } from '../military/military.js';
 import { simulateNPCJoin } from './plateau-runs.js';
 import { resolveSpy } from '../espionage/espionage.js';
 import { addReport } from '../ui/ui-manager.js';
+import { isGravityBoostActive, isGravityBurnout } from './highstorm.js';
 
 export function openDeployModal(gameState, type) {
     if (type === 'run') {
@@ -77,8 +78,15 @@ export function updateMissionInfo(gameState) {
         carry += (units[u] * s.carry);
     }
     
-    if (gameState.state.fabrials.gravity_lift > 0) {
-        speed *= (1 + (0.5 * gameState.state.fabrials.gravity_lift));
+    // Apply gravity lift bonuses (check for burnout and boost)
+    if (gameState.state.fabrials.gravity_lift > 0 && !isGravityBurnout(gameState)) {
+        if (isGravityBoostActive(gameState)) {
+            // Storm overcharge: 3x speed boost
+            speed *= 3.0;
+        } else {
+            // Normal gravity lift effect
+            speed *= (1 + (0.5 * gameState.state.fabrials.gravity_lift));
+        }
     }
     speed = Math.max(0.1, speed);
     
@@ -415,4 +423,45 @@ export function updateRunButtonState(gameState) {
             </button>
         `;
     }
+}
+
+export function recallMission(gameState) {
+    const missionIndex = gameState.state.selectedMissionIndex;
+    if (missionIndex === undefined || missionIndex === null) {
+        log("No mission selected.", "text-red-400");
+        return;
+    }
+    
+    const mission = gameState.state.deployments[missionIndex];
+    if (!mission) {
+        log("Mission not found.", "text-red-400");
+        return;
+    }
+    
+    // Calculate remaining time
+    const timeLeftMs = Math.max(0, mission.returnTime - Date.now());
+    
+    if (timeLeftMs === 0) {
+        log("Mission is already returning.", "text-yellow-400");
+        return;
+    }
+    
+    // Set new return time to 50% of remaining time
+    const recallTimeMs = timeLeftMs * 0.5;
+    mission.returnTime = Date.now() + recallTimeMs;
+    mission.recalled = true;
+    
+    const hrs = Math.floor(recallTimeMs / 3600000);
+    const mins = Math.floor((recallTimeMs % 3600000) / 60000);
+    
+    let timeStr = `${Math.round(recallTimeMs / 1000)}s`;
+    if (hrs > 0) timeStr = `${hrs}h ${mins}m`;
+    else if (mins > 0) timeStr = `${mins}m`;
+    
+    const typeLabel = mission.type === 'espionage' ? 'Espionage mission' : `${mission.type} mission`;
+    log(`⚠️ ${typeLabel} recalled! Forces returning in ${timeStr}.`, "text-orange-400 font-bold");
+    
+    // Close the details modal
+    const modal = document.getElementById('mission-details-modal');
+    if (modal) modal.classList.remove('open');
 }

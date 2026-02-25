@@ -10,14 +10,14 @@
 | Source | Rate | Requirement |
 |--------|------|-------------|
 | Gemheart Income | +20 S/day per Gemheart | Own Gemhearts |
-| Market Income | +100 S/day per Market | Build Markets |
-| Ledger Fabrial | ×1.5 Market Income | 5 Gemhearts |
+| Market Income | +400 S/day per Market | Build Markets |
+| Ledger Fabrial | ×1.5 Market Income | 3 Gemhearts |
 | Multiple Markets | Stacking | Exponential cost |
 
 **Example Daily Incomes:**
 - Day 1 (no markets): 0 S/day (unless you have gemhearts)
-- With 1 Market: 100 S/day
-- With 2 Markets + 1 Ledger: 225 S/day (150 base + 75 from ledger multiplier)
+- With 1 Market: 400 S/day
+- With 2 Markets + 1 Ledger: 1,200 S/day (800 base + 400 from ledger multiplier)
 
 ---
 
@@ -61,7 +61,7 @@
 | Building | Base Cost | Scale | Cap | Notes |
 |----------|-----------|-------|-----|-------|
 | Soulcaster | 150 S | Exponential | 50 | Food cap +50 each |
-| Market | 250 S | Exponential | ∞ | +100 S/day income |
+| Market | 250 S | Exponential | ∞ | +400 S/day income |
 | Spy Network | 5,000 S | Flat | 1 | Unlocks espionage |
 | Research Library | 10,000 S | Flat | 1 | Unlocks fabrials |
 | Training Camp | 7,000 S | Linear | ∞ | +10% army power |
@@ -86,8 +86,8 @@
 
 ### Fabrial Costs vs. Benefit
 - **Heatrial (3 GH):** 1.5x Provision Cap → Strong utility
-- **Ledger (5 GH):** 1.5x Market Income → Passive scaling
-- **Gravity Rig (7 GH):** 2.0x Army Speed → Mission efficiency
+- **Ledger (3 GH):** 1.5x Market Income → Passive scaling
+- **Gravity Rig (5 GH):** 2.0x Army Speed → Mission efficiency
 
 **Gemheart Economy:**
 - Only source: Purchases at 10,000 S each (after unlocking spy network)
@@ -138,13 +138,13 @@ monastery: { baseCost: 5000, cap: 0, income: 0, powerMod: 0, survivalMod: 0.05, 
 - NPC population thresholds
 
 ### Issue #4: Ledger Fabrial Too Powerful
-**Problem:** 1.5x multiplier on all market income is exponential scaling for 5 Gemhearts
-- With 10 Markets + 2 Ledgers = 2,250 S/day (if math is right)
+**Problem:** 1.5x multiplier on all market income is exponential scaling for only 3 Gemhearts
+- With 10 Markets + 2 Ledgers = 12,000 S/day (4,000 base × 1.5 × 1.5 × 2)
 - Makes military recruitment trivial
 
 **Fix:** Cap Ledger benefits or increase cost
 ```javascript
-ledger: { cost: 7, name: "Synchronized Ledger" }, // Up from 5
+ledger: { cost: 5, name: "Synchronized Ledger" }, // Up from 3
 // OR make stack penalty: 1st = 1.5x, 2nd = 1.3x, 3rd = 1.1x
 ```
 
@@ -214,9 +214,9 @@ Training Camp 3: 17,000 S
 
 **Income Example (Multiple Markets + Fabrials):**
 ```
-Base: 10 Markets × 100 = 1,000 S/day
-With Ledger #1: 1,000 × 1.5 = 1,500 S/day
-With Ledger #2: 1,000 × 1.5 × 1.5 = 2,250 S/day (current stacking)
+Base: 10 Markets × 400 = 4,000 S/day
+With Ledger #1: 4,000 × 1.5 = 6,000 S/day
+With Ledger #2: 4,000 × 1.5 × 1.5 = 9,000 S/day (current stacking)
 ```
 
 ---

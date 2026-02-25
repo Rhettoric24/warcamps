@@ -2,6 +2,8 @@
 import { UNIT_STATS } from '../core/constants.js';
 import { log } from '../core/utils.js';
 import { canRecruit } from '../core/validation.js';
+import { getStormPowerDebuff, getChullProtection } from '../events/highstorm.js';
+import { getEffectiveBuildingBonus } from '../buildings/buildings.js';
 
 export function getAvailableTroops(gameState) {
     const avail = { ...gameState.state.military };
@@ -32,7 +34,7 @@ export function getArmyStats(gameState, availableOnly = false) {
         if (UNIT_STATS[unit]) {
             const stats = UNIT_STATS[unit];
             if (!stats.spy) {
-                currentPop += count;
+                currentPop += count * (stats.provision || 1);
                 basePower += count * stats.power;
                 totalCarry += count * stats.carry;
                 speedMod += count * stats.speed;
@@ -40,20 +42,22 @@ export function getArmyStats(gameState, availableOnly = false) {
                     for (let i = 0; i < count; i++) unitMultiplier *= stats.multiplier;
                 }
             } else {
-                currentPop += count;
+                currentPop += count * (stats.provision || 1);
             }
         }
     }
 
-    const trainingBonus = 1 + (gameState.state.buildings.training_camp * 0.1); // buildingData value
-    const survivalBonus = gameState.state.buildings.monastery * 0.05;
-    let provisionCap = 150 + (gameState.state.buildings.soulcaster * 50);
+    const trainingBonus = 1 + (gameState.state.buildings.training_camp * 0.1 * getEffectiveBuildingBonus(gameState, 'training_camp')); // buildingData value
+    const survivalBonus = gameState.state.buildings.monastery * 0.05 * getEffectiveBuildingBonus(gameState, 'monastery');
+    const stormDebuff = getStormPowerDebuff(gameState); // Highstorm -20% power debuff
+    
+    let provisionCap = 150 + (gameState.state.buildings.soulcaster * 50 * getEffectiveBuildingBonus(gameState, 'soulcaster'));
     if (gameState.state.fabrials.heatrial > 0) {
         provisionCap *= (1 + (0.5 * gameState.state.fabrials.heatrial));
     }
 
     return {
-        power: basePower * unitMultiplier * trainingBonus,
+        power: basePower * unitMultiplier * trainingBonus * stormDebuff,
         carry: totalCarry,
         speed: Math.max(0.1, speedMod),
         pop: currentPop,
@@ -88,9 +92,9 @@ export function recruit(gameState, type) {
     }
 
     // Deduct resources
-    const resourceType = validation.totalCost ? 'spheres' : 'gemhearts';
+    const resourceType = (type === 'shardbearers') ? 'gemhearts' : 'spheres';
     if (resourceType === 'gemhearts') {
-        gameState.state.gemhearts -= validation.totalCost || validation.cost;
+        gameState.state.gemhearts -= validation.totalCost;
     } else {
         gameState.state.spheres -= validation.totalCost;
     }
@@ -105,12 +109,17 @@ export function recruit(gameState, type) {
 export function processCasualties(gameState, units, baseRate) {
     let report = [];
     let totalLost = 0;
+    
+    // Calculate chull protection
+    const chullProtection = getChullProtection(units);
+    const effectiveBaseRate = baseRate * (1 - chullProtection);
+    
     for (let u in units) {
         const count = units[u];
         let lost = 0;
-        let effectiveRate = baseRate;
-        if (u === 'shardbearers') effectiveRate = 0.005;
-        if (u === 'bridgecrews') effectiveRate = 0.9;
+        let effectiveRate = effectiveBaseRate;
+        if (u === 'shardbearers') effectiveRate = Math.min(effectiveBaseRate, 0.01);
+        if (u === 'bridgecrews') effectiveRate = Math.min(0.9, effectiveBaseRate * 1.5);
         for (let i = 0; i < count; i++) {
             if (Math.random() < effectiveRate) lost++;
         }
@@ -124,6 +133,7 @@ export function processCasualties(gameState, units, baseRate) {
         }
     }
     if (report.length > 0) {
-        log(`Casualties: ${report.join(", ")}.`, "text-orange-500 text-xs");
+        const protectionMsg = chullProtection > 0 ? ` (${Math.round(chullProtection * 100)}% protected by chulls)` : '';
+        log(`Casualties: ${report.join(", ")}.${protectionMsg}`, "text-orange-500 text-xs");
     }
 }

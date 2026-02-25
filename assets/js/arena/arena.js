@@ -1,5 +1,6 @@
 // Arena combat system module
 import { log } from '../core/utils.js';
+import { isFabrialBurnedOut, isArenaBoostActive } from '../events/highstorm.js';
 
 // Calculate XP needed to reach a specific level
 // Level 2: 20 XP, Level 3: 40 XP, Level 4: 80 XP, etc.
@@ -129,6 +130,22 @@ export function commitThrill(gameState) {
     }
 }
 
+export function forfeitDuel(gameState) {
+    if (!gameState.state.activeDuel) {
+        log("No active duel to forfeit.", "text-red-400");
+        return;
+    }
+    
+    // Save current HP back to champion
+    gameState.state.arena.hp = gameState.state.activeDuel.playerHp;
+    
+    // No XP gain for forfeiting
+    log("You forfeited the duel. No rewards.", "text-yellow-400");
+    
+    // End the duel
+    gameState.state.activeDuel = null;
+}
+
 function showDuelRecap(gameState, isVictory, xpGain, leveledUp = false) {
     const modal = document.getElementById('duel-recap-modal');
     if (!modal) return;
@@ -191,10 +208,22 @@ export function useThrillAmplifier(gameState) {
         log("No Thrill Amplifiers available!", "text-red-500");
         return;
     }
-    if (gameState.state.arena.thrillAmpUsedToday) {
-        log("Thrill Amplifier already used today!", "text-yellow-400");
+    
+    // Check for highstorm burnout
+    if (isFabrialBurnedOut(gameState, 'thrill_amp')) {
+        log("Thrill Amplifier is burned out from the storm!", "text-red-500");
         return;
     }
+    
+    // Check usage limit (can use twice during highstorm boost)
+    const maxUses = isArenaBoostActive(gameState) ? 2 : 1;
+    const usageCount = gameState.state.arena.thrillAmpUseCount || 0;
+    if (usageCount >= maxUses) {
+        const msg = maxUses === 2 ? "Thrill Amplifier used twice today!" : "Thrill Amplifier already used today!";
+        log(msg, "text-yellow-400");
+        return;
+    }
+    
     if (gameState.state.activeDuel.playerHp <= 1) {
         log("Too low on HP to amplify thrill!", "text-red-500");
         return;
@@ -204,7 +233,7 @@ export function useThrillAmplifier(gameState) {
     const thrillGain = 3 * thrillAmpCount;
     gameState.state.activeDuel.playerHp -= 1;
     gameState.state.activeDuel.playerThrill += thrillGain;
-    gameState.state.arena.thrillAmpUsedToday = true;
+    gameState.state.arena.thrillAmpUseCount = usageCount + 1;
     
     gameState.state.activeDuel.log.push(`<span class="text-purple-400">⚡ Amplified thrill! -1 HP, +${thrillGain} Thrill</span>`);
     log(`Thrill Amplified: +${thrillGain} thrill`, "text-purple-400");
@@ -218,17 +247,29 @@ export function useHalfShard(gameState) {
         log("No Half-Shards available!", "text-red-500");
         return;
     }
-    if (gameState.state.arena.halfShardUsedToday) {
-        log("Half-Shard already used today!", "text-yellow-400");
+    
+    // Check for highstorm burnout
+    if (isFabrialBurnedOut(gameState, 'half_shard')) {
+        log("Half-Shard is burned out from the storm!", "text-red-500");
         return;
     }
+    
+    // Check usage limit (can use twice during highstorm boost)
+    const maxUses = isArenaBoostActive(gameState) ? 2 : 1;
+    const usageCount = gameState.state.arena.halfShardUseCount || 0;
+    if (usageCount >= maxUses) {
+        const msg = maxUses === 2 ? "Half-Shard used twice today!" : "Half-Shard already used today!";
+        log(msg, "text-yellow-400");
+        return;
+    }
+    
     if (gameState.state.activeDuel.blockActive) {
         log("Half-Shard block already active!", "text-yellow-400");
         return;
     }
     
     gameState.state.activeDuel.blockActive = true;
-    gameState.state.arena.halfShardUsedToday = true;
+    gameState.state.arena.halfShardUseCount = usageCount + 1;
     gameState.state.activeDuel.log.push(`<span class="text-cyan-400">🛡️ Half-Shard activated! Next attack blocked.</span>`);
     log("Half-Shard block active!", "text-cyan-400");
 }
@@ -240,10 +281,22 @@ export function useRegenPlate(gameState) {
         log("No Regeneration Plates available!", "text-red-500");
         return;
     }
-    if (gameState.state.arena.regenPlateUsedToday) {
-        log("Regeneration Plate already used today!", "text-yellow-400");
+    
+    // Check for highstorm burnout
+    if (isFabrialBurnedOut(gameState, 'regen_plate')) {
+        log("Regeneration Plate is burned out from the storm!", "text-red-500");
         return;
     }
+    
+    // Check usage limit (can use twice during highstorm boost)
+    const maxUses = isArenaBoostActive(gameState) ? 2 : 1;
+    const usageCount = gameState.state.arena.regenPlateUseCount || 0;
+    if (usageCount >= maxUses) {
+        const msg = maxUses === 2 ? "Regeneration Plate used twice today!" : "Regeneration Plate already used today!";
+        log(msg, "text-yellow-400");
+        return;
+    }
+    
     if (gameState.state.arena.hp >= gameState.state.arena.maxHp) {
         log("Champion is already at full health!", "text-green-400");
         return;
@@ -253,7 +306,7 @@ export function useRegenPlate(gameState) {
     const oldHp = gameState.state.arena.hp;
     gameState.state.arena.hp = Math.min(gameState.state.arena.hp + healAmount, gameState.state.arena.maxHp);
     const actualHeal = gameState.state.arena.hp - oldHp;
-    gameState.state.arena.regenPlateUsedToday = true;
+    gameState.state.arena.regenPlateUseCount = usageCount + 1;
     
     log(`Regeneration Plate: Champion healed +${actualHeal} HP.`, "text-green-400 font-bold");
 }

@@ -219,7 +219,7 @@ export function updateDeploymentsUI(gameState) {
     if (gameState.state.deployments.length === 0) {
         depList.innerHTML = '<p class="text-xs text-slate-500 italic text-center">No active missions.</p>';
     } else {
-        gameState.state.deployments.forEach(d => {
+        gameState.state.deployments.forEach((d, index) => {
             const timeLeft = Math.max(0, (d.returnTime - Date.now()) / 1000).toFixed(0);
             const hrs = Math.floor(timeLeft / 3600);
             const mins = Math.floor((timeLeft % 3600) / 60);
@@ -239,7 +239,8 @@ export function updateDeploymentsUI(gameState) {
             }
 
             const div = document.createElement('div');
-            div.className = "bg-blue-900/30 border border-blue-800 p-2 rounded flex justify-between items-center text-[10px]";
+            div.className = "bg-blue-900/30 border border-blue-800 p-2 rounded flex justify-between items-center text-[10px] cursor-pointer hover:bg-blue-900/50 transition-colors";
+            div.onclick = () => window.gameInstance.openMissionDetails(index);
             div.innerHTML = `<div><span class="font-bold text-cyan-300 uppercase">${typeLabel}</span><span class="text-slate-400 block">${detailLine}</span></div><div class="text-right"><span class="block">${d.type === 'espionage' ? 'Agents' : 'Units'}: ${unitCount}</span></div>`;
             depList.appendChild(div);
         });
@@ -475,6 +476,88 @@ export function toggleReportDetails(detailsId) {
         detailsEl.classList.add('hidden');
         arrowEl.textContent = '▶';
     }
+}
+
+export function openMissionDetails(gameState, missionIndex) {
+    const mission = gameState.state.deployments[missionIndex];
+    if (!mission) return;
+    
+    // Store the mission index for recall
+    gameState.state.selectedMissionIndex = missionIndex;
+    
+    const modal = document.getElementById('mission-details-modal');
+    if (!modal) return;
+    
+    // Update mission type
+    const typeLabel = mission.type === 'espionage' ? 'ESPIONAGE OPERATION' : mission.type.toUpperCase();
+    document.getElementById('mission-detail-type').textContent = typeLabel;
+    
+    // Update time information
+    const timeLeftMs = Math.max(0, mission.returnTime - Date.now());
+    const hrs = Math.floor(timeLeftMs / 3600000);
+    const mins = Math.floor((timeLeftMs % 3600000) / 60000);
+    const secs = Math.floor((timeLeftMs % 60000) / 1000);
+    
+    let timeStr = `${secs}s`;
+    if (hrs > 0) timeStr = `${hrs}h ${mins}m ${secs}s`;
+    else if (mins > 0) timeStr = `${mins}m ${secs}s`;
+    
+    document.getElementById('mission-detail-time').textContent = timeStr;
+    document.getElementById('mission-detail-return').textContent = new Date(mission.returnTime).toLocaleString();
+    
+    // Update units deployed
+    const unitsContainer = document.getElementById('mission-detail-units');
+    const espionageSection = document.getElementById('mission-detail-espionage');
+    
+    if (mission.type === 'espionage') {
+        // Show espionage-specific info
+        espionageSection.classList.remove('hidden');
+        unitsContainer.innerHTML = '';
+        document.getElementById('mission-detail-total').textContent = mission.myAgents || 0;
+        
+        const targetName = mission.targetName || NPC_PRINCES[mission.targetKey]?.name || mission.targetKey || 'Unknown';
+        document.getElementById('mission-detail-target').textContent = targetName;
+        document.getElementById('mission-detail-action').textContent = mission.actionLabel || mission.action || 'Mission';
+        document.getElementById('mission-detail-agents').textContent = mission.myAgents || 0;
+    } else {
+        // Show military units
+        espionageSection.classList.add('hidden');
+        
+        if (mission.units) {
+            const unitLabels = {
+                bridgecrews: 'Bridgecrews',
+                spearmen: 'Spearmen',
+                archers: 'Archers',
+                shardbearers: 'Shardbearers',
+                chulls: 'Chulls'
+            };
+            
+            let unitsHtml = '';
+            let totalUnits = 0;
+            
+            for (const [unitType, count] of Object.entries(mission.units)) {
+                if (count > 0) {
+                    unitsHtml += `
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">${unitLabels[unitType] || unitType}:</span>
+                            <span class="text-white font-bold">${count}</span>
+                        </div>
+                    `;
+                    totalUnits += count;
+                }
+            }
+            
+            unitsContainer.innerHTML = unitsHtml || '<p class="text-slate-500 text-xs italic">No units</p>';
+            document.getElementById('mission-detail-total').textContent = totalUnits;
+        }
+    }
+    
+    modal.classList.add('open');
+}
+
+export function closeMissionDetailsModal() {
+    const modal = document.getElementById('mission-details-modal');
+    if (modal) modal.classList.remove('open');
 }
 
 export function sendSpanreedMessage(gameState) {
