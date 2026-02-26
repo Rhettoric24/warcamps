@@ -2,7 +2,7 @@
 import { UNIT_STATS } from '../core/constants.js';
 import { log } from '../core/utils.js';
 import { canRecruit } from '../core/validation.js';
-import { getStormPowerDebuff, getChullProtection } from '../events/highstorm.js';
+import { getChullProtection } from '../events/highstorm.js';
 import { getEffectiveBuildingBonus } from '../buildings/buildings.js';
 
 export function getAvailableTroops(gameState) {
@@ -49,7 +49,6 @@ export function getArmyStats(gameState, availableOnly = false) {
 
     const trainingBonus = 1 + (gameState.state.buildings.training_camp * 0.1 * getEffectiveBuildingBonus(gameState, 'training_camp')); // buildingData value
     const survivalBonus = gameState.state.buildings.monastery * 0.05 * getEffectiveBuildingBonus(gameState, 'monastery');
-    const stormDebuff = getStormPowerDebuff(gameState); // Highstorm -20% power debuff
     
     let provisionCap = 150 + (gameState.state.buildings.soulcaster * 50 * getEffectiveBuildingBonus(gameState, 'soulcaster'));
     if (gameState.state.fabrials.heatrial > 0) {
@@ -57,7 +56,7 @@ export function getArmyStats(gameState, availableOnly = false) {
     }
 
     return {
-        power: basePower * unitMultiplier * trainingBonus * stormDebuff,
+        power: basePower * unitMultiplier * trainingBonus,
         carry: totalCarry,
         speed: Math.max(0.1, speedMod),
         pop: currentPop,

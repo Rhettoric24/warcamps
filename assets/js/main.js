@@ -20,7 +20,8 @@ import { startDuel, commitThrill, enterTournament, useThrillAmplifier, useHalfSh
 import { spyAction, processSuspicionDecay } from './espionage/espionage.js';
 import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo, recallMission } from './events/deployments.js';
 import { spawnEvent, simulateNPCJoin, resolveRun } from './events/plateau-runs.js';
-import { checkHighstorm, updateHighstormEffects, repairBuilding } from './events/highstorm.js';
+import { checkHighstorm, updateHighstormEffects, hideHighstormNotification, showHighstormImpactModal } from './events/highstorm.js';
+import { startConquest, resolveConquest, getConquestStatus, canStartConquest } from './events/conquest.js';
 
 // Create global game instance
 const gameInstance = {
@@ -177,12 +178,103 @@ const gameInstance = {
             this.state.spheres += spheresFromGems;
             spheresFromGemsTotal += spheresFromGems;
 
+            // Calculate market income
             const marketIncome = BUILDING_DATA.market?.income ?? 100;
             const marketDamageMultiplier = getEffectiveBuildingBonus(this, 'market');
             let income = this.state.buildings.market * marketIncome * marketDamageMultiplier;
             if (this.state.fabrials.ledger > 0) income *= (1 + (0.5 * this.state.fabrials.ledger));
+
+            // Calculate total army size for upkeep tier
+            const totalUnits = (this.state.military.bridgecrews || 0) +
+                             (this.state.military.spearmen || 0) +
+                             (this.state.military.archers || 0) +
+                             (this.state.military.chulls || 0) +
+                             (this.state.military.shardbearers || 0);
+
+            // Determine unit upkeep tier and income penalty
+            let unitUpkeepPenalty = 0;
+            let unitUpkeepTier = 'Low';
+            if (totalUnits > 600) {
+                unitUpkeepPenalty = 0.60;
+                unitUpkeepTier = 'Crippling';
+            } else if (totalUnits > 400) {
+                unitUpkeepPenalty = 0.40;
+                unitUpkeepTier = 'High';
+            } else if (totalUnits > 200) {
+                unitUpkeepPenalty = 0.20;
+                unitUpkeepTier = 'Mild';
+            }
+
+            // Apply unit upkeep penalty to income
+            const incomeBeforePenalty = income;
+            income = Math.floor(income * (1 - unitUpkeepPenalty));
+            const incomeReduction = incomeBeforePenalty - income;
+
             this.state.spheres += income;
             spheresFromMarketsTotal += income;
+
+            // Calculate building upkeep with soft caps
+            let buildingUpkeep = 0;
+            const buildingUpkeepDetails = [];
+
+            // Market upkeep (after 10)
+            const marketCount = this.state.buildings.market || 0;
+            if (marketCount > 10) {
+                if (marketCount > 20) {
+                    const tier1 = 10 * 5; // Markets 11-20 at 5 S/day
+                    const tier2 = (marketCount - 20) * 10; // Markets 21+ at 10 S/day
+                    buildingUpkeep += tier1 + tier2;
+                    buildingUpkeepDetails.push(`${tier1 + tier2} market upkeep`);
+                } else {
+                    const tier1 = (marketCount - 10) * 5; // Markets 11-20 at 5 S/day
+                    buildingUpkeep += tier1;
+                    buildingUpkeepDetails.push(`${tier1} market upkeep`);
+                }
+            }
+
+            // Soulcaster upkeep (after 10)
+            const bunkerCount = this.state.buildings.soulcaster || 0;
+            if (bunkerCount > 10) {
+                if (bunkerCount > 20) {
+                    const tier1 = 10 * 8; // Bunkers 11-20 at 8 S/day
+                    const tier2 = (bunkerCount - 20) * 15; // Bunkers 21+ at 15 S/day
+                    buildingUpkeep += tier1 + tier2;
+                    buildingUpkeepDetails.push(`${tier1 + tier2} bunker upkeep`);
+                } else {
+                    const tier1 = (bunkerCount - 10) * 8; // Bunkers 11-20 at 8 S/day
+                    buildingUpkeep += tier1;
+                    buildingUpkeepDetails.push(`${tier1} bunker upkeep`);
+                }
+            }
+
+            // Monastery upkeep (50 S/day each)
+            const monasteryCount = this.state.buildings.monastery || 0;
+            if (monasteryCount > 0) {
+                const monasteryUpkeep = monasteryCount * 50;
+                buildingUpkeep += monasteryUpkeep;
+                buildingUpkeepDetails.push(`${monasteryUpkeep} monastery upkeep`);
+            }
+
+            // Spy Network upkeep (75 S/day)
+            const spyNetworkCount = this.state.buildings.spy_network || 0;
+            if (spyNetworkCount > 0) {
+                const spyNetworkUpkeep = spyNetworkCount * 75;
+                buildingUpkeep += spyNetworkUpkeep;
+                buildingUpkeepDetails.push(`${spyNetworkUpkeep} spy network upkeep`);
+            }
+
+            // Stormshelter upkeep (25 S/day each)
+            const stormshelterCount = this.state.buildings.stormshelter || 0;
+            if (stormshelterCount > 0) {
+                const stormshelterUpkeep = stormshelterCount * 25;
+                buildingUpkeep += stormshelterUpkeep;
+                buildingUpkeepDetails.push(`${stormshelterUpkeep} stormshelter upkeep`);
+            }
+
+            // Apply building upkeep
+            if (buildingUpkeep > 0) {
+                this.state.spheres -= buildingUpkeep;
+            }
 
             // Reset champion HP to full every day
             this.state.arena.hp = this.state.arena.maxHp;
@@ -212,12 +304,39 @@ const gameInstance = {
             // Process suspicion decay for all rivals
             processSuspicionDecay(this);
 
+            // Resolve conquest if active and time is up
+            if (this.state.conquest.active && Date.now() >= this.state.conquest.endTime) {
+                resolveConquest(this);
+            }
+
             if (!isOffline) {
-                // Add daily growth report
-                const totalIncome = spheresFromGems + income;
-                if (totalIncome > 0) {
-                    const report = `Daily income: ${totalIncome.toLocaleString()} spheres (${spheresFromGems} from gemhearts, ${income.toLocaleString()} from markets/ledgers).`;
-                    addReport(this, 'growth', report, { spheres: totalIncome, fromGems: spheresFromGems, fromMarkets: income });
+                // Add daily growth report with detailed upkeep breakdown
+                const netIncome = spheresFromGems + income - buildingUpkeep;
+                const shouldReport = spheresFromGems > 0 || income > 0 || buildingUpkeep > 0 || incomeReduction > 0;
+                
+                if (shouldReport) {
+                    let reportText = `Daily income: ${netIncome.toLocaleString()} spheres (${spheresFromGems} from gemhearts, ${income.toLocaleString()} from markets/ledgers`;
+                    
+                    // Add unit upkeep penalty if applicable
+                    if (unitUpkeepPenalty > 0) {
+                        reportText += `, -${incomeReduction.toLocaleString()} unit upkeep [${unitUpkeepTier}: ${totalUnits} units, -${Math.floor(unitUpkeepPenalty * 100)}% income]`;
+                    }
+                    
+                    // Add building upkeep details
+                    if (buildingUpkeep > 0) {
+                        reportText += `, -${buildingUpkeep.toLocaleString()} building upkeep (${buildingUpkeepDetails.join(', ')})`;
+                    }
+                    
+                    reportText += ').';
+                    addReport(this, 'growth', reportText, { 
+                        spheres: netIncome, 
+                        fromGems: spheresFromGems, 
+                        fromMarkets: income,
+                        buildingUpkeep: buildingUpkeep,
+                        unitUpkeepPenalty: incomeReduction,
+                        unitUpkeepTier: unitUpkeepTier,
+                        totalUnits: totalUnits
+                    });
                 }
                 
                 const totalDays = this.state.dayCount ?? 0;
@@ -392,13 +511,49 @@ const gameInstance = {
     openMissionDetails: (index) => openMissionDetails(gameInstance, index),
     closeMissionDetailsModal: () => closeMissionDetailsModal(),
     recallMission: () => recallMission(gameInstance),
-    repairBuilding: (type) => repairBuilding(gameInstance, type),
+    startConquest: () => startConquest(gameInstance),
+    /* Conquest status and availability */
+    getConquestStatus: () => getConquestStatus(gameInstance),
+    canStartConquest: () => canStartConquest(gameInstance),
+    openHighstormDetails: () => openHighstormDetails(),
+    closeHighstormModal: () => closeHighstormModal(),
+    closeHighstormImpactModal: () => closeHighstormImpactModal(),
+    showHighstormImpact: () => showHighstormImpactModal(gameInstance),
     requestNotificationPermission: () => requestNotificationPermission(),
     _updateModalStats: (stats) => updateModalStats(stats),
     _updateSpyNetwork: (unlocked) => updateSpyNetwork(unlocked),
     _toggleTournamentCard: (active) => toggleTournamentCard(active),
     _toggleBlackMarket: (unlocked) => toggleBlackMarket(unlocked)
 };
+
+// Helper functions for highstorm modal
+function openHighstormDetails() {
+    const modal = document.getElementById('highstorm-details-modal');
+    if (modal) modal.classList.add('open');
+}
+
+function closeHighstormModal() {
+    const modal = document.getElementById('highstorm-details-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+function closeHighstormImpactModal() {
+    const modal = document.getElementById('highstorm-impact-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+// Make notifications clickable to open details
+document.addEventListener('DOMContentLoaded', () => {
+    const phase2 = document.getElementById('highstorm-phase2');
+    const phase3 = document.getElementById('highstorm-phase3');
+    
+    if (phase2) {
+        phase2.addEventListener('click', () => showHighstormImpactModal(gameInstance));
+    }
+    if (phase3) {
+        phase3.addEventListener('click', () => showHighstormImpactModal(gameInstance));
+    }
+});
 
 // Expose game instance globally so HTML can call methods
 window.gameInstance = gameInstance;

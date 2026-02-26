@@ -7,6 +7,9 @@ export function createGameState() {
         state: {
             spheres: DEV_MODE ? 25000 : 15000,
             gemhearts: DEV_MODE ? 10 : 1,
+            provisions: 0,
+            land: 0,
+            maxLand: 50,
             military: {
                 bridgecrews: 20, spearmen: 100, archers: 0,
                 shardbearers: 0, chulls: 0,
@@ -27,10 +30,17 @@ export function createGameState() {
             activeDuel: null,
             thrillBid: 1,
             deployments: [],
+            conquest: {
+                active: false,
+                startTime: null,
+                endTime: null,
+                enemyPower: 0,
+                landReward: 0
+            },
             buildings: {
                 soulcaster: 0, market: 0, training_camp: 0,
                 monastery: 0, shelter: 0, spy_network: 0, research_library: 0,
-                whisper_tower: 0
+                stormshelter: 0, whisper_tower: 0
             },
             fabrials: {
                 heatrial: 0,
@@ -57,8 +67,7 @@ export function createGameState() {
                 daysSinceStorm: 10,
                 nextStormProbability: 0,
                 active: false
-            },
-            damagedBuildings: {}
+            }
         }
     };
 }

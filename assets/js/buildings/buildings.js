@@ -2,7 +2,7 @@
 import { BUILDING_DATA, FABRIAL_DATA } from '../core/constants.js';
 import { log } from '../core/utils.js';
 import { canBuild, canConstructFabrial, canAffordResource } from '../core/validation.js';
-import { isBuildingDamaged, isBlackMarketDiscountActive } from '../events/highstorm.js';
+import { isBlackMarketDiscountActive } from '../events/highstorm.js';
 
 export function getBuildingCost(gameState, type) {
     const data = BUILDING_DATA[type];
@@ -54,8 +54,11 @@ export function build(gameState, type) {
             break;
         }
 
-        // Deduct cost and add building
+        // Deduct cost and land, then add building
         gameState.state.spheres -= validation.cost;
+        if (validation.landCost && validation.landCost > 0) {
+            gameState.state.land += validation.landCost;
+        }
         gameState.state.buildings[type]++;
         built++;
     }
@@ -118,6 +121,7 @@ export function constructFabrial(gameState, type) {
 }
 
 export function getEffectiveBuildingBonus(gameState, buildingType) {
-    // Returns the effective multiplier for a building (0.5 if damaged, 1.0 if not)
-    return isBuildingDamaged(gameState, buildingType) ? 0.5 : 1.0;
+    // All buildings are either operational (count > 0) or non-existent (count = 0)
+    // No more damaged state, so always return full effectiveness
+    return 1.0;
 }

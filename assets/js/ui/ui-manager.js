@@ -5,6 +5,8 @@ import { getBuildingCost } from '../buildings/buildings.js';
 import { formatTime } from '../core/utils.js';
 import { updateModalStats, updateSpyNetwork, toggleTournamentCard, toggleBlackMarket } from './modal-manager.js';
 import { generateThrillButtons } from '../arena/arena.js';
+import { isArenaBoostActive, isFabrialBurnedOut, isGravityBoostActive, isGravityBurnout } from '../events/highstorm.js';
+import { getConquestStatus, canStartConquest } from '../events/conquest.js';
 
 export function updateUI(gameState) {
     updateTimeUI(gameState);
@@ -36,6 +38,7 @@ function updateModalsUI(gameState) {
         spy_network: gameState.state.buildings.spy_network,
         research_library: gameState.state.buildings.research_library,
         market: gameState.state.buildings.market,
+        stormshelter: gameState.state.buildings.stormshelter,
         soulcaster: gameState.state.buildings.soulcaster,
         training_camp: gameState.state.buildings.training_camp,
         monastery: gameState.state.buildings.monastery
@@ -90,6 +93,12 @@ export function updateResourcesUI(gameState) {
     document.getElementById('res-gemhearts').innerText = gameState.state.gemhearts;
     document.getElementById('res-pop-current').innerText = stats.pop;
     document.getElementById('res-food-cap').innerText = stats.cap;
+    
+    // Update land display
+    const currentLand = gameState.state.land || 0;
+    const maxLand = gameState.state.maxLand || 50;
+    document.getElementById('res-land-current').innerText = currentLand;
+    document.getElementById('res-land-max').innerText = maxLand;
 }
 
 export function updateMilitaryUI(gameState) {
@@ -118,6 +127,47 @@ export function updateMilitaryUI(gameState) {
 
     const chullEl = document.getElementById('det-chulls');
     if (chullEl) chullEl.innerText = gameState.state.military.chulls;
+
+    // Calculate and display unit upkeep tier
+    const totalUnits = (gameState.state.military.bridgecrews || 0) +
+                     (gameState.state.military.spearmen || 0) +
+                     (gameState.state.military.archers || 0) +
+                     (gameState.state.military.chulls || 0) +
+                     (gameState.state.military.shardbearers || 0);
+
+    let upkeepTier = 'Low';
+    let upkeepPenalty = '0%';
+    let upkeepDesc = '0-200 units = No penalty';
+    let upkeepColor = 'text-green-400';
+
+    if (totalUnits > 600) {
+        upkeepTier = 'Crippling';
+        upkeepPenalty = '-60%';
+        upkeepDesc = '601+ units = -60% income';
+        upkeepColor = 'text-red-400';
+    } else if (totalUnits > 400) {
+        upkeepTier = 'High';
+        upkeepPenalty = '-40%';
+        upkeepDesc = '401-600 units = -40% income';
+        upkeepColor = 'text-orange-400';
+    } else if (totalUnits > 200) {
+        upkeepTier = 'Mild';
+        upkeepPenalty = '-20%';
+        upkeepDesc = '201-400 units = -20% income';
+        upkeepColor = 'text-yellow-400';
+    }
+
+    const upkeepTierEl = document.getElementById('unit-upkeep-tier');
+    const upkeepDescEl = document.getElementById('unit-upkeep-desc');
+
+    if (upkeepTierEl) {
+        upkeepTierEl.textContent = `${upkeepTier} (${upkeepPenalty})`;
+        upkeepTierEl.className = `font-bold ${upkeepColor}`;
+    }
+
+    if (upkeepDescEl) {
+        upkeepDescEl.textContent = upkeepDesc;
+    }
 }
 
 export function updateBuildingsUI(gameState) {
@@ -129,16 +179,28 @@ export function updateBuildingsUI(gameState) {
         if (btn) {
             const data = BUILDING_DATA[bld];
             const owned = gameState.state.buildings[bld];
+            const landCost = data.landCost || 0;
+            const availableLand = (gameState.state.maxLand || 50) - (gameState.state.land || 0);
+            const hasEnoughLand = landCost === 0 || availableLand >= landCost;
+            
             if (data.max && owned >= data.max) {
                 btn.innerText = "MAX";
                 btn.disabled = true;
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
             } else {
                 const cost = getBuildingCost(gameState, bld);
-                btn.innerText = `${cost.toLocaleString()} S`;
-                btn.disabled = gameState.state.spheres < cost;
-                if (gameState.state.spheres < cost) btn.classList.add('opacity-50', 'cursor-not-allowed');
-                else btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                let buttonText = `${cost.toLocaleString()} S`;
+                if (landCost > 0) buttonText += ` | ${landCost}🌍`;
+                
+                btn.innerText = buttonText;
+                const hasEnoughSpherés = gameState.state.spheres >= cost;
+                btn.disabled = !hasEnoughSpherés || !hasEnoughLand;
+                
+                if (!hasEnoughSpherés || !hasEnoughLand) {
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
             }
         }
     }
@@ -167,6 +229,62 @@ export function updateFabrialsUI(gameState) {
             }
         }
     }
+
+    updateFabrialOverchargeUI(gameState);
+}
+
+function updateFabrialOverchargeUI(gameState) {
+    const gravityCount = gameState.state.fabrials.gravity_lift || 0;
+    const gravityBoost = gravityCount > 0 && isGravityBoostActive(gameState);
+    const gravityBurned = gravityCount > 0 && isGravityBurnout(gameState);
+    setFabrialStatus('gravity_lift', gravityBoost, gravityBurned);
+
+    const arenaBoost = isArenaBoostActive(gameState);
+    ['regen_plate', 'thrill_amp', 'half_shard'].forEach(type => {
+        const count = gameState.state.fabrials[type] || 0;
+        const boosted = count > 0 && arenaBoost;
+        const burned = count > 0 && isFabrialBurnedOut(gameState, type);
+        setFabrialStatus(type, boosted, burned);
+    });
+}
+
+function setFabrialStatus(fabrialKey, isBoosted, isBurned) {
+    const card = document.getElementById(`fabrial-card-${fabrialKey}`);
+    const note = document.getElementById(`fabrial-note-${fabrialKey}`);
+
+    if (card) {
+        card.classList.toggle('fabrial-overcharged', isBoosted);
+        card.classList.toggle('fabrial-burned', isBurned);
+    }
+
+    if (note) {
+        const text = getFabrialOverchargeText(fabrialKey, isBoosted, isBurned);
+        if (text) {
+            note.innerHTML = text;
+            note.classList.remove('hidden');
+        } else {
+            note.innerHTML = '';
+            note.classList.add('hidden');
+        }
+    }
+}
+
+function getFabrialOverchargeText(fabrialKey, isBoosted, isBurned) {
+    if (isBoosted) {
+        if (fabrialKey === 'gravity_lift') {
+            return '<div class="text-emerald-300">Overcharge: +3x speed for 3 days.</div>';
+        }
+        return '<div class="text-emerald-300">Overcharge: 2 uses per day for 3 days.</div>';
+    }
+
+    if (isBurned) {
+        if (fabrialKey === 'gravity_lift') {
+            return '<div class="text-rose-300">Burnout: Disabled for 3 days.</div>';
+        }
+        return '<div class="text-rose-300">Burnout: This fabrial disabled for 3 days.</div>';
+    }
+
+    return '';
 }
 
 export function updateArenaUI(gameState) {
@@ -310,6 +428,70 @@ export function updateTabVisibility(gameState) {
     }
 }
 
+export function updateConquestUI(gameState) {
+    const currentLand = gameState.state.land || 0;
+    const maxLand = gameState.state.maxLand || 50;
+    const availableLand = maxLand - currentLand;
+    
+    // Update land display
+    const landDisplay = document.getElementById('conquest-land-display');
+    if (landDisplay) landDisplay.textContent = `${currentLand}/${maxLand}`;
+    
+    const landBar = document.getElementById('conquest-land-bar');
+    if (landBar) {
+        const percent = (currentLand / maxLand) * 100;
+        landBar.style.width = percent + '%';
+    }
+    
+    const landAvailable = document.getElementById('conquest-land-available');
+    if (landAvailable) landAvailable.textContent = availableLand;
+    
+    // Update mission status and button
+    const status = getConquestStatus(gameState);
+    const statusContainer = document.getElementById('conquest-status-container');
+    const launchContainer = document.getElementById('conquest-launch-container');
+    const btn = document.getElementById('btn-start-conquest');
+    
+    if (status && status.active) {
+        if (statusContainer) statusContainer.classList.remove('hidden');
+        if (launchContainer) launchContainer.classList.add('hidden');
+        
+        // Update progress
+        const progressPercent = document.getElementById('conquest-progress-percent');
+        if (progressPercent) progressPercent.textContent = status.progress + '%';
+        
+        const progressBar = document.getElementById('conquest-progress-bar');
+        if (progressBar) progressBar.style.width = status.progress + '%';
+        
+        // Update enemy and reward info
+        const enemyPower = document.getElementById('conquest-enemy-power');
+        if (enemyPower) enemyPower.textContent = status.enemyPower;
+        
+        const landReward = document.getElementById('conquest-land-reward');
+        if (landReward) landReward.textContent = status.landReward;
+        
+        // Disable button
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    } else {
+        if (statusContainer) statusContainer.classList.add('hidden');
+        if (launchContainer) launchContainer.classList.remove('hidden');
+        
+        // Update button state
+        if (btn) {
+            const canStart = canStartConquest(gameState);
+            btn.disabled = !canStart;
+            if (!canStart) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+    }
+}
+
 export function updateEspionageUI(gameState) {
     const targetSelect = document.getElementById('spy-target-modal') || document.getElementById('spy-target');
     const displayEl = document.getElementById('espionage-suspicion-display');
@@ -332,6 +514,7 @@ export function setTab(tab) {
     document.getElementById('tab-' + tab).classList.add('active');
     document.getElementById('panel-build').classList.add('hidden');
     document.getElementById('panel-military').classList.add('hidden');
+    document.getElementById('panel-conquest').classList.add('hidden');
     document.getElementById('panel-spy').classList.add('hidden');
     document.getElementById('panel-fabrial').classList.add('hidden');
     document.getElementById('panel-arena').classList.add('hidden');

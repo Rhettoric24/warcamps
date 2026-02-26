@@ -59,6 +59,21 @@ export function canBuild(gameState, buildingKey) {
             cost: cost
         };
     }
+
+    // Check land availability
+    const landCost = buildData.landCost || 0;
+    const usedLand = gameState.state.land || 0;
+    const maxLand = gameState.state.maxLand || 50;
+    const availableLand = maxLand - usedLand;
+    if (landCost > 0 && availableLand < landCost) {
+        return {
+            valid: false,
+            reason: `Insufficient territory. Need ${landCost} land, have ${availableLand} available. Conquer more territory.`,
+            cost: cost,
+            landCost: landCost,
+            availableLand: availableLand
+        };
+    }
     
     // Check prerequisites
     if (buildData.requires) {
@@ -73,7 +88,7 @@ export function canBuild(gameState, buildingKey) {
         }
     }
     
-    return { valid: true, cost: cost };
+    return { valid: true, cost: cost, landCost: landCost };
 }
 
 /**

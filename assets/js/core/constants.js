@@ -1,5 +1,5 @@
 // Dev mode flag - Set to true for faster testing (10 sec days, 25k spheres, 10 gemhearts)
-export const DEV_MODE = false; // Change to true for dev/testing
+export const DEV_MODE = true; // Change to true for dev/testing
 
 // Helper function to get DAY_MS based on DEV_MODE
 export function getDAY_MS() {
@@ -50,14 +50,15 @@ export const UNIT_STATS = {
 };
 
 export const BUILDING_DATA = {
-    soulcaster: { baseCost: 150, cap: 50, income: 0, powerMod: 0, survivalMod: 0, scale: 'exponential' },
-    market: { baseCost: 250, cap: 0, income: 400, powerMod: 0, survivalMod: 0, scale: 'exponential' },
-    training_camp: { baseCost: 7000, cap: 0, income: 0, powerMod: 0.1, survivalMod: 0, scale: 'linear' },
-    monastery: { baseCost: 7000, cap: 0, income: 0, powerMod: 0, survivalMod: 0.05, scale: 'linear' },
-    spy_network: { baseCost: 5000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1 },
-    research_library: { baseCost: 10000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1 },
-    shelter: { baseCost: 100, cap: 10, income: 0, powerMod: 0, survivalMod: 0 },
-    whisper_tower: { baseCost: 0, ghostbloodCost: 10, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1, special: 'detection_and_spy_power' }
+    soulcaster: { baseCost: 150, cap: 50, income: 0, powerMod: 0, survivalMod: 0, scale: 'exponential', landCost: 1 },
+    market: { baseCost: 250, cap: 0, income: 400, powerMod: 0, survivalMod: 0, scale: 'exponential', landCost: 1 },
+    training_camp: { baseCost: 7000, cap: 0, income: 0, powerMod: 0.1, survivalMod: 0, scale: 'linear', landCost: 5 },
+    monastery: { baseCost: 7000, cap: 0, income: 0, powerMod: 0, survivalMod: 0.05, scale: 'linear', upkeep: 50, landCost: 5 },
+    spy_network: { baseCost: 5000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1, upkeep: 75, landCost: 5 },
+    research_library: { baseCost: 10000, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1, landCost: 5 },
+    shelter: { baseCost: 100, cap: 10, income: 0, powerMod: 0, survivalMod: 0, landCost: 0 },
+    stormshelter: { baseCost: 500, cap: 0, income: 0, powerMod: 0, survivalMod: 0, upkeep: 25, landCost: 1 },
+    whisper_tower: { baseCost: 0, ghostbloodCost: 10, cap: 0, income: 0, powerMod: 0, survivalMod: 0, max: 1, special: 'detection_and_spy_power', landCost: 5 }
 };
 
 export const FABRIAL_DATA = {

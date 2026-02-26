@@ -121,7 +121,7 @@ game.state.highstorm.nextStormProbability = 1.0; // 100% chance
 - ✅ `assets/js/main.js` - Integrated highstorm checks & imports
 
 ### Integration
-- ✅ `assets/js/military/military.js` - Added chull protection & storm debuff
+- ✅ `assets/js/military/military.js` - Added chull protection
 - ✅ `assets/js/buildings/buildings.js` - Added storm discount & damage handling
 - ✅ `assets/js/events/deployments.js` - Added gravity boost/burnout
 - ✅ `assets/js/espionage/espionage.js` - Added spy storm bonus

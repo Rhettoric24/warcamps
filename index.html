@@ -11,7 +11,122 @@
 
     <div id="screen-overlay" class="fixed inset-0 pointer-events-none z-40"></div>
 
-    <!-- LOGIN SCREEN -->
+    <!-- HIGHSTORM NOTIFICATION SYSTEM -->
+    <div id="highstorm-notification" class="hidden fixed top-0 left-0 right-0 z-45 pointer-events-auto">
+        <!-- Phase 1: Full Screen Overlay (first 10 seconds) -->
+        <div id="highstorm-phase1" class="hidden inset-0 bg-gradient-to-b from-cyan-500/20 to-cyan-900/20 text-center pt-20">
+            <span class="storm-text">⚡ HIGHSTORM ⚡</span>
+        </div>
+
+        <!-- Phase 2: Top Banner Alert (10 seconds to 10 minutes) -->
+        <div id="highstorm-phase2" class="hidden" onclick="game.showHighstormImpact()">
+            <div class="max-w-6xl mx-auto flex items-center justify-between">
+                <span class="phase2-text">⚡ Active Highstorm ⚡</span>
+                <span class="text-xs font-bold" id="highstorm-time-remaining" style="color: rgba(6, 182, 212, 0.8);">Click for details</span>
+            </div>
+        </div>
+
+        <!-- Phase 3: Small Persistent Banner (10 minutes to end) -->
+        <div id="highstorm-phase3" class="hidden" onclick="game.showHighstormImpact()">
+            <div class="max-w-6xl mx-auto flex items-center justify-between">
+                <span class="phase3-text">⚡ Highstorm Effects Active</span>
+                <span id="highstorm-phase3-time" class="phase3-text" style="font-size: 0.75rem;">-- remaining</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIGHSTORM DETAILS MODAL -->
+    <div id="highstorm-details-modal" class="modal">
+        <div class="bg-gradient-to-b from-slate-900 to-cyan-950/20 border-2 border-cyan-500/50 rounded-lg p-6 w-full max-w-2xl m-4 shadow-2xl shadow-cyan-900/50">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-cyan-300 uppercase tracking-wider">⚡ HIGHSTORM EFFECTS ⚡</h2>
+                <button onclick="game.closeHighstormModal()" class="text-white hover:text-red-400 text-2xl font-bold">✕</button>
+            </div>
+            
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+                <!-- Army Damage Section -->
+                <div class="effect-category bg-red-900/20 border border-red-700/50 p-3 rounded">
+                    <h3 class="text-sm font-bold text-red-400 mb-2">💀 ARMY DEVASTATION</h3>
+                    <div class="text-xs text-slate-300 space-y-1">
+                        <div>20-25% casualty rate to deployed forces</div>
+                        <div>40% casualty rate to plateau run participants</div>
+                        <div class="text-cyan-300">Chull units provide 5% protection per unit (max 50%)</div>
+                    </div>
+                </div>
+
+                <!-- Building Damage Section -->
+                <div class="effect-category bg-orange-900/20 border border-orange-700/50 p-3 rounded">
+                    <h3 class="text-sm font-bold text-orange-400 mb-2">🏚️ INFRASTRUCTURE DAMAGE</h3>
+                    <div class="text-xs text-slate-300 space-y-1">
+                        <div>Each market and soulcast bunker has a 5% chance to be destroyed</div>
+                        <div class="text-cyan-300">Stormshelters protect 1 building each</div>
+                        <div class="mt-2">Rebuild destroyed buildings via Logistics</div>
+                    </div>
+                </div>
+
+                <!-- Fabrial Overcharge Section -->
+                <div class="effect-category bg-purple-900/20 border border-purple-700/50 p-3 rounded">
+                    <h3 class="text-sm font-bold text-purple-400 mb-2">⚡ FABRIAL OVERCHARGE</h3>
+                    <div class="text-xs text-slate-300 space-y-1">
+                        <div class="text-green-400 font-bold">60% Chance: Boost Effect (3 days)</div>
+                        <div class="ml-4">• Gravity Rigs: 3x speed boost</div>
+                        <div class="ml-4">• Arena Fabrials: Can use twice per day</div>
+                        <div class="mt-2 text-red-400 font-bold">40% Chance: Burnout (3 days)</div>
+                        <div class="ml-4">• Gravity Rigs: Disabled completely</div>
+                        <div class="ml-4">• Arena Fabrials: One random arena fabrial burned out</div>
+                    </div>
+                </div>
+
+                <!-- Spy Bonus Section -->
+                <div class="effect-category bg-green-900/20 border border-green-700/50 p-3 rounded">
+                    <h3 class="text-sm font-bold text-green-400 mb-2">🕵️ SPY CHAOS</h3>
+                    <div class="text-xs text-slate-300">
+                        <div>Spy operations gain 2x effective power multiplier</div>
+                        <div class="text-cyan-300 mt-1">Duration: 24 hours</div>
+                    </div>
+                </div>
+
+                <!-- Black Market Discount Section -->
+                <div class="effect-category bg-blue-900/20 border border-blue-700/50 p-3 rounded">
+                    <h3 class="text-sm font-bold text-blue-400 mb-2">💰 BLACK MARKET DISCOUNT</h3>
+                    <div class="text-xs text-slate-300">
+                        <div>Gemheart exchange reduced: 10,000 S → 7,500 S</div>
+                        <div class="text-cyan-300 mt-1">Duration: 48 hours</div>
+                    </div>
+                </div>
+
+                <!-- Strategy Tip -->
+                <div class="effect-category bg-slate-800/50 border border-slate-600 p-3 rounded">
+                    <div class="text-xs text-slate-300 italic">
+                        <span class="text-cyan-400 font-bold">💡 Tip:</span> Use the mission recall feature to dodge army casualties by pulling deployments back early (costs 50% of remaining time).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIGHSTORM IMPACT MODAL (Shows personal effects) -->
+    <div id="highstorm-impact-modal" class="modal">
+        <div class="bg-gradient-to-b from-slate-900 to-cyan-950/20 border-2 border-cyan-500/50 rounded-lg p-6 w-full max-w-2xl m-4 shadow-2xl shadow-cyan-900/50">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-cyan-300 uppercase tracking-wider">⚡ HIGHSTORM IMPACT REPORT ⚡</h2>
+                <button onclick="game.closeHighstormImpactModal()" class="text-white hover:text-red-400 text-2xl font-bold">✕</button>
+            </div>
+            
+            <div class="mb-4 text-slate-300 text-sm bg-slate-800/50 p-3 rounded border border-slate-600">
+                <span class="text-cyan-400 font-bold">Status:</span> A devastating highstorm has struck your warcamp. Review the effects below.
+            </div>
+
+            <div id="highstorm-impact-content" class="space-y-3 max-h-96 overflow-y-auto">
+                <!-- Content will be dynamically populated -->
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button onclick="game.closeHighstormImpactModal()" class="btn-alethi px-6 py-2">Understood</button>
+            </div>
+        </div>
+    </div>
+
     <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-4">
         <div class="max-w-md w-full bg-slate-800 p-8 rounded-lg border-2 border-blue-900 shadow-2xl text-center">
             <h1 class="text-3xl font-cinzel text-blue-400 mb-2">Command Hub, Palace</h1>
@@ -56,6 +171,12 @@
                             <span id="res-pop-current" class="text-white">0</span>/<span id="res-food-cap" class="text-green-500">150</span>
                         </div>
                     </div>
+                    <div class="text-center min-w-[70px]">
+                        <span class="block text-[10px] uppercase text-slate-400">Territory</span>
+                        <div class="text-lg font-bold">
+                            <span id="res-land-current" class="text-white">0</span>/<span id="res-land-max" class="text-cyan-400">50</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -68,6 +189,7 @@
                     <div class="flex flex-wrap border-b border-slate-700 gap-1 p-1 bg-slate-800/50">
                         <button onclick="game.setTab('build')" id="tab-build" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider active">Logistics</button>
                         <button onclick="game.setTab('military')" id="tab-military" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider">Barracks</button>
+                        <button onclick="game.setTab('conquest')" id="tab-conquest" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider hidden text-cyan-400">Conquest</button>
                         <button onclick="game.openModal('spy')" id="tab-spy" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider hidden text-green-400">Espionage</button>
                         <button onclick="game.openModal('fabrial')" id="tab-fabrial" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider hidden text-purple-400">Fabrials</button>
                         <button onclick="game.setTab('arena')" id="tab-arena" class="tab-btn flex-1 min-w-max py-3 px-2 text-sm font-bold uppercase tracking-wider hidden text-red-400">Arena</button>
@@ -112,6 +234,13 @@
                                     <button id="btn-build-market" onclick="game.build('market')" class="btn-alethi px-3 py-1 rounded text-[10px]">250 S</button>
                                 </div>
                                 <p class="text-[10px] text-slate-400 font-bold text-yellow-500">+400 S/Day Income | Owned: <span id="own-market">0</span></p>
+                            </div>
+                            <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <div class="flex justify-between items-center mb-1">
+                                    <p class="font-bold text-sm">Stormshelter</p>
+                                    <button id="btn-build-stormshelter" onclick="game.build('stormshelter')" class="btn-alethi px-3 py-1 rounded text-[10px]">500 S</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400">Protects 1 building from highstorm damage | Upkeep: 25 S/day | Owned: <span id="own-stormshelter">0</span></p>
                             </div>
                             <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
                                 <div class="flex justify-between items-center mb-1">
@@ -162,6 +291,62 @@
                             <button onclick="game.recruit('shardbearers')" class="w-full bg-cyan-900 border border-cyan-400 py-2 rounded text-xs flex justify-between px-4">
                                 <span>Equip Shardbearer</span> <span>1 Gemheart</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- CONQUEST TAB -->
+                    <div id="panel-conquest" class="hidden p-6 space-y-4">
+                        <h2 class="text-sm font-cinzel text-cyan-400 mb-4 border-b border-cyan-700/50 pb-2">TERRITORIAL EXPANSION</h2>
+                        
+                        <!-- Territory Status -->
+                        <div class="bg-cyan-900/20 border border-cyan-700/50 rounded p-4 mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-bold text-slate-400">Territory Control</span>
+                                <span id="conquest-land-display" class="text-cyan-300 font-bold">50/50</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded h-3 overflow-hidden">
+                                <div id="conquest-land-bar" class="bg-gradient-to-r from-cyan-500 to-cyan-400 h-full rounded" style="width: 100%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-500 mt-2">Available land: <span id="conquest-land-available" class="text-cyan-300 font-bold">0</span></div>
+                        </div>
+
+                        <!-- Conquest Mission Status -->
+                        <div id="conquest-status-container" class="hidden bg-slate-800/50 border border-slate-700 rounded p-4 mb-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-xs font-bold text-cyan-300">CONQUEST IN PROGRESS</span>
+                                <span id="conquest-progress-percent" class="text-cyan-300 font-bold">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-900 rounded h-2 overflow-hidden mb-3">
+                                <div id="conquest-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full" style="width: 0%"></div>
+                            </div>
+                            <div class="text-[10px] text-slate-400">
+                                <div>Enemy Force: <span id="conquest-enemy-power" class="text-red-400 font-bold">0</span> power</div>
+                                <div>Potential Reward: <span id="conquest-land-reward" class="text-green-400 font-bold">0</span> land</div>
+                            </div>
+                        </div>
+
+                        <!-- Conquest Launch Button -->
+                        <div id="conquest-launch-container">
+                            <button id="btn-start-conquest" onclick="game.startConquest()" class="w-full bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white py-3 rounded text-sm font-bold uppercase tracking-widest transition-all">
+                                Launch Conquest Mission
+                            </button>
+                            <div class="text-[10px] text-slate-500 mt-2 space-y-1">
+                                <div>Cost: 200 Spheres + 100 Provisions</div>
+                                <div>Requirement: 20+ Military Units</div>
+                                <div>Duration: 1 Day</div>
+                            </div>
+                        </div>
+
+                        <!-- Requirements Info -->
+                        <div class="bg-slate-800/50 border border-slate-700 rounded p-3 mt-4">
+                            <p class="text-[10px] font-bold text-slate-400 mb-2">HOW IT WORKS:</p>
+                            <ul class="text-[10px] text-slate-500 space-y-1 list-disc list-inside">
+                                <li>Deploy your army to conquer hostile territory</li>
+                                <li>Enemy force scales with your current territory size</li>
+                                <li>Victory margin determines land conquered (10-25 per mission)</li>
+                                <li>Casualties: 8-15% on victory, 25-35% on defeat</li>
+                                <li>Expand territory to build more buildings</li>
+                            </ul>
                         </div>
                     </div>
 
@@ -345,6 +530,15 @@
                         <div class="stat-card"><span class="text-slate-400">Speed Mod:</span> <span id="stat-speed" class="font-bold text-white">0%</span></div>
                         <div class="stat-card"><span class="text-slate-400">Spy Power:</span> <span id="stat-agents" class="font-bold text-cyan-400">0</span></div>
                     </div>
+
+                    <!-- Unit Upkeep Indicator -->
+                    <div class="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Unit Upkeep:</span>
+                            <span id="unit-upkeep-tier" class="font-bold text-green-400">Low (0%)</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 mt-1" id="unit-upkeep-desc">0-200 units = No penalty</div>
+                    </div>
                     
                     <div class="space-y-1 max-h-48 overflow-y-auto pr-2">
                         <div class="flex justify-between text-[11px] border-b border-slate-800 pb-1">
@@ -393,6 +587,23 @@
                                 <span class="block text-xs font-bold text-red-300">Attack Parshendi</span>
                                 <span class="block text-[10px] text-red-400">Duration: ~1.5 Days | Gemheart Chance</span>
                             </button>
+                            <div class="group relative">
+                                <button onclick="game.startConquest()" class="w-full bg-cyan-900/40 hover:bg-cyan-900/60 p-3 rounded text-left border border-cyan-700/50">
+                                    <span class="block text-xs font-bold text-cyan-300">Territorial Conquest</span>
+                                    <span class="block text-[10px] text-cyan-400">Duration: 1 Day | Expand Territory</span>
+                                </button>
+                                <div class="hidden group-hover:block absolute bottom-full left-0 z-50 mb-2 w-72 bg-slate-800 border border-cyan-500/50 rounded p-3 text-[10px] text-slate-300 shadow-lg">
+                                    <p class="font-bold text-cyan-400 mb-2">⚡ CONQUEST MISSION</p>
+                                    <ul class="space-y-1 text-slate-400">
+                                        <li>• <span class="text-cyan-300">Cost:</span> 200 Spheres</li>
+                                        <li>• <span class="text-cyan-300">Reward:</span> 10-25 Territory</li>
+                                        <li>• <span class="text-cyan-300">Enemy Power:</span> Scales with territory</li>
+                                        <li>• <span class="text-cyan-300">Victory Casualties:</span> 8-15%</li>
+                                        <li>• <span class="text-cyan-300">Defeat Casualties:</span> 25-35%</li>
+                                        <li class="pt-1 text-slate-500">Deploy army to conquer hostile territory. Enemy strength increases as you control more land. Victory margin determines land conquered.</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- PLATEAU RUN EVENT -->
@@ -443,6 +654,7 @@
                 <h2 class="text-xl font-bold text-blue-300 uppercase tracking-wider">LOGISTICS COMMAND</h2>
                 <button onclick="game.closeModal()" class="text-white hover:text-red-400 text-2xl font-bold">✕</button>
             </div>
+            
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="game.build('spy_network')">
                     <p class="font-bold text-sm text-blue-300">Spy Network</p>
@@ -461,6 +673,13 @@
                     <p class="text-[10px] text-slate-400 mb-2">+400 S/Day Income</p>
                     <p class="text-[10px] text-blue-400 mb-2">Owned: <span id="modal-own-market">0</span></p>
                     <p id="btn-build-market" class="btn-alethi px-3 py-1 rounded text-[10px] inline-block">250 S</p>
+                </div>
+                <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="game.build('stormshelter')">
+                    <p class="font-bold text-sm text-blue-300">Stormshelter</p>
+                    <p class="text-[10px] text-slate-400 mb-2">Protects 1 building from storms</p>
+                    <p class="text-[10px] text-slate-500 mb-2">Upkeep: 25 S/day</p>
+                    <p class="text-[10px] text-blue-400 mb-2">Owned: <span id="modal-own-stormshelter">0</span></p>
+                    <p id="btn-build-stormshelter" class="btn-alethi px-3 py-1 rounded text-[10px] inline-block">500 S</p>
                 </div>
                 <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="game.build('soulcaster')">
                     <p class="font-bold text-sm text-blue-300">Soulcast Bunkers</p>
@@ -655,7 +874,7 @@
             </div>
             
             <div class="space-y-3">
-                <div class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
+                <div id="fabrial-card-heatrial" class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-sm font-bold text-purple-200">🔥 Heatrial System</p>
@@ -666,7 +885,7 @@
                     </div>
                 </div>
 
-                <div class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
+                <div id="fabrial-card-ledger" class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-sm font-bold text-purple-200">📖 Synchronized Ledger</p>
@@ -677,12 +896,13 @@
                     </div>
                 </div>
 
-                <div class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
+                <div id="fabrial-card-gravity_lift" class="bg-purple-900/30 border border-purple-700/50 p-4 rounded hover:bg-purple-900/50 transition-colors">
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-sm font-bold text-purple-200">⚡ Gravity-Spanning Rig</p>
                             <p class="text-[10px] text-slate-400 mt-1">Increases Army Speed by 2.0x (Stackable)</p>
                             <p class="text-[10px] text-purple-400 mt-2">Owned: <span id="owned-gravity_lift-modal">0</span></p>
+                            <div id="fabrial-note-gravity_lift" class="fabrial-overcharge-note hidden"></div>
                         </div>
                         <button id="btn-fab-gravity_lift" onclick="game.constructFabrial('gravity_lift')" class="bg-purple-700 hover:bg-purple-600 text-white text-[10px] px-4 py-2 rounded font-bold whitespace-nowrap ml-2">5 Gemhearts</button>
                     </div>
@@ -693,34 +913,37 @@
                     <h3 class="text-xs font-bold text-red-300 uppercase tracking-wider mb-3">⚔️ Champion Arsenal</h3>
                     
                     <div class="space-y-3">
-                        <div class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
+                        <div id="fabrial-card-regen_plate" class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="text-sm font-bold text-red-200">💚 Regeneration Plate</p>
                                     <p class="text-[10px] text-slate-400 mt-1">Heal +1 HP per owned (once per day, manual activation)</p>
                                     <p class="text-[10px] text-purple-400 mt-2">Owned: <span id="owned-regen_plate-modal">0</span></p>
+                                    <div id="fabrial-note-regen_plate" class="fabrial-overcharge-note hidden"></div>
                                 </div>
                                 <button id="btn-fab-regen_plate" onclick="game.constructFabrial('regen_plate')" class="bg-red-700 hover:bg-red-600 text-white text-[10px] px-4 py-2 rounded font-bold whitespace-nowrap ml-2">1 Gemheart</button>
                             </div>
                         </div>
 
-                        <div class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
+                        <div id="fabrial-card-thrill_amp" class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="text-sm font-bold text-red-200">⚡ Thrill Amplifier</p>
                                     <p class="text-[10px] text-slate-400 mt-1">Trade 1 HP for 3 Thrill per owned in combat (once per day)</p>
                                     <p class="text-[10px] text-purple-400 mt-2">Owned: <span id="owned-thrill_amp-modal">0</span></p>
+                                    <div id="fabrial-note-thrill_amp" class="fabrial-overcharge-note hidden"></div>
                                 </div>
                                 <button id="btn-fab-thrill_amp" onclick="game.constructFabrial('thrill_amp')" class="bg-red-700 hover:bg-red-600 text-white text-[10px] px-4 py-2 rounded font-bold whitespace-nowrap ml-2">2 Gemhearts</button>
                             </div>
                         </div>
 
-                        <div class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
+                        <div id="fabrial-card-half_shard" class="bg-red-900/20 border border-red-700/50 p-4 rounded hover:bg-red-900/30 transition-colors">
                             <div class="flex justify-between items-start">
                                 <div>
                                     <p class="text-sm font-bold text-red-200">🛡️ Half-Shard</p>
                                     <p class="text-[10px] text-slate-400 mt-1">Block one attack in combat (once per day)</p>
                                     <p class="text-[10px] text-purple-400 mt-2">Owned: <span id="owned-half_shard-modal">0</span></p>
+                                    <div id="fabrial-note-half_shard" class="fabrial-overcharge-note hidden"></div>
                                 </div>
                                 <button id="btn-fab-half_shard" onclick="game.constructFabrial('half_shard')" class="bg-red-700 hover:bg-red-600 text-white text-[10px] px-4 py-2 rounded font-bold whitespace-nowrap ml-2">4 Gemhearts</button>
                             </div>

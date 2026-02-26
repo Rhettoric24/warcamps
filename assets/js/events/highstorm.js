@@ -5,8 +5,11 @@ import { getBuildingCost } from '../buildings/buildings.js';
 import { processCasualties } from '../military/military.js';
 import { addReport } from '../ui/ui-manager.js';
 
-// Track timeout for UI effects so we can clear it if needed
+// Track timeouts for UI effects
 let stormOverlayTimeout = null;
+let phase2Timeout = null;
+let phase3Timeout = null;
+let notificationUpdateInterval = null;
 
 /**
  * Check if a highstorm should occur and trigger it
@@ -49,8 +52,8 @@ export function triggerHighstorm(gameState) {
     log("⚡ HIGHSTORM APPROACHING! ⚡", "text-cyan-300 font-bold text-lg bg-cyan-950 p-2 border border-cyan-500");
     triggerNotification("Highstorm", "A devastating highstorm strikes the Shattered Plains!");
     
-    // Show visual storm effects
-    showStormOverlay();
+    // Show visual storm effects with tiered notification system
+    showHighstormNotification(gameState);
     
     // Update storm tracking
     gameState.state.highstorm.lastStormDay = gameState.state.dayCount;
@@ -58,46 +61,113 @@ export function triggerHighstorm(gameState) {
     gameState.state.highstorm.nextStormProbability = 0;
     gameState.state.highstorm.active = true;
     gameState.state.highstorm.effectsEndDay = gameState.state.dayCount + 2; // Effects last 2 days
+    gameState.state.highstorm.triggerTime = Date.now(); // Track when the storm started
     
     let stormReport = [];
+    let detailedEffects = []; // For the modal
     
     // EFFECT 1: Army Devastation
     const armyDamage = processArmyDamage(gameState);
     if (armyDamage.casualties > 0) {
         stormReport.push(`Lost ${armyDamage.casualties} troops in deployed forces`);
+        detailedEffects.push({
+            type: 'army',
+            icon: '💀',
+            title: 'ARMY CASUALTIES',
+            description: `Lost ${armyDamage.casualties} troops in deployed missions`,
+            severity: 'negative'
+        });
+    } else if (armyDamage.protected) {
+        detailedEffects.push({
+            type: 'army',
+            icon: '🛡️',
+            title: 'ARMY PROTECTED',
+            description: 'Chull units absorbed all storm damage to deployed forces',
+            severity: 'positive'
+        });
     }
     
-    // EFFECT 2: Building Damage
+    // EFFECT 2: Building Destruction
     const buildingDamage = processBuildingDamage(gameState);
-    if (buildingDamage.damagedCount > 0) {
-        stormReport.push(`${buildingDamage.damagedCount} buildings damaged`);
+    if (buildingDamage.destroyedCount > 0) {
+        stormReport.push(`${buildingDamage.destroyedCount} buildings destroyed`);
+        const destroyedList = buildingDamage.destroyedBuildings.map(b => getBuildingDisplayName(b)).join(', ');
+        detailedEffects.push({
+            type: 'building',
+            icon: '💥',
+            title: 'BUILDINGS DESTROYED',
+            description: `${buildingDamage.destroyedCount} buildings destroyed: ${destroyedList}. Rebuild them at Logistics Command.`,
+            severity: 'negative'
+        });
+    }
+
+    if (buildingDamage.savedCount > 0) {
+        stormReport.push(`${buildingDamage.savedCount} buildings saved by stormshelters`);
+        detailedEffects.push({
+            type: 'building',
+            icon: '🛡️',
+            title: 'STORMSHELTERS HELD',
+            description: `${buildingDamage.savedCount} building${buildingDamage.savedCount !== 1 ? 's' : ''} avoided destruction due to stormshelters.`,
+            severity: 'positive'
+        });
     }
     
     // EFFECT 3: Fabrial Overcharge
     const fabrialEffects = processFabrialOvercharge(gameState);
     if (fabrialEffects.effects.length > 0) {
         stormReport.push(...fabrialEffects.effects);
+        fabrialEffects.effects.forEach(effect => {
+            const isPositive = effect.includes('overcharged') || effect.includes('supercharged');
+            detailedEffects.push({
+                type: 'fabrial',
+                icon: isPositive ? '⚡' : '⚠️',
+                title: isPositive ? 'FABRIAL BOOST' : 'FABRIAL BURNOUT',
+                description: effect,
+                severity: isPositive ? 'positive' : 'negative'
+            });
+        });
     }
     
-    // EFFECT 4: Rival Lord Chaos - All players get -20% power for 2 days
-    stormReport.push("All warcamps weakened (-20% power for 2 days)");
-    
-    // EFFECT 5: Spy opportunities
+    // EFFECT 4: Spy opportunities
     gameState.state.highstorm.spyBonusActive = true;
     gameState.state.highstorm.spyBonusEndDay = gameState.state.dayCount + 1; // 24 hours
     stormReport.push("Spy operations more effective (2x success for 1 day)");
+    detailedEffects.push({
+        type: 'spy',
+        icon: '🕵️',
+        title: 'SPY ADVANTAGE',
+        description: 'Espionage operations have 2x effectiveness for 1 day',
+        severity: 'positive'
+    });
     
-    // EFFECT 6: Black market discount
+    // EFFECT 5: Black market discount
     gameState.state.highstorm.blackMarketDiscount = true;
     gameState.state.highstorm.blackMarketEndDay = gameState.state.dayCount + 2; // 48 hours
     stormReport.push("Black market gemhearts discounted (7,500 S for 2 days)");
+    detailedEffects.push({
+        type: 'market',
+        icon: '💰',
+        title: 'BLACK MARKET DISCOUNT',
+        description: 'Gemhearts reduced from 10,000 S to 7,500 S for 2 days',
+        severity: 'positive'
+    });
     
-    // EFFECT 7: Postpone tournament if active
+    // EFFECT 6: Postpone tournament if active
     if (gameState.state.tournamentActive) {
         gameState.state.tournamentActive = false;
         gameState.state.highstorm.tournamentPostponed = true;
         stormReport.push("Tournament postponed by 3 days");
+        detailedEffects.push({
+            type: 'tournament',
+            icon: '🏆',
+            title: 'TOURNAMENT POSTPONED',
+            description: 'Arena tournament delayed by 3 days due to storm',
+            severity: 'neutral'
+        });
     }
+    
+    // Store detailed effects for the modal
+    gameState.state.highstorm.lastImpactEffects = detailedEffects;
     
     // Log all effects
     log("Highstorm effects: " + stormReport.join("; "), "text-cyan-400 text-xs");
@@ -105,6 +175,11 @@ export function triggerHighstorm(gameState) {
         type: 'highstorm',
         effects: stormReport 
     });
+    
+    // Show impact modal after a short delay (after phase 1)
+    setTimeout(() => {
+        showHighstormImpactModal(gameState);
+    }, 11000); // 11 seconds - after the 10 second phase 1
 }
 
 /**
@@ -150,7 +225,8 @@ function processArmyDamage(gameState) {
         log(`Plateau run forces devastated: ${casualties} casualties from highstorm!`, "text-red-400 text-xs");
     }
     
-    return { casualties: totalCasualties };
+    const hasDeployments = gameState.state.deployments.length > 0 || (gameState.state.activeRun && gameState.state.activeRun.playerForces);
+    return { casualties: totalCasualties, protected: hasDeployments && totalCasualties === 0 };
 }
 
 /**
@@ -183,58 +259,57 @@ function countCasualties(gameState, units, baseRate) {
 }
 
 /**
- * Damage random buildings
+ * Destroy random buildings
  * @param {Object} gameState - Current game state
- * @returns {Object} Summary of damage
+ * @returns {Object} Summary of destruction
  */
 function processBuildingDamage(gameState) {
-    // Initialize damaged buildings tracking if needed
-    if (!gameState.state.damagedBuildings) {
-        gameState.state.damagedBuildings = {};
-    }
-    
-    // Get list of buildings player owns
+    // Build per-building list (markets and bunkers only)
     const ownedBuildings = [];
-    for (let building in gameState.state.buildings) {
-        const count = gameState.state.buildings[building];
-        if (count > 0 && building !== 'whisper_tower') { // Whisper tower can't be damaged
-            ownedBuildings.push(building);
-        }
-    }
-    
-    if (ownedBuildings.length === 0) {
-        return { damagedCount: 0 };
-    }
-    
-    // Calculate protection
-    const shelterCount = gameState.state.buildings.shelter || 0;
-    const gravityRigCount = gameState.state.fabrials.gravity_lift || 0;
-    const protectedBuildings = shelterCount + (gravityRigCount * 2);
-    
-    // Damage 2-3 random buildings, minus protection
-    const targetDamage = Math.floor(Math.random() * 2) + 2; // 2-3 buildings
-    const actualDamage = Math.max(0, targetDamage - protectedBuildings);
-    
-    if (actualDamage === 0) {
-        log("Your shelters and gravity rigs protected all buildings from storm damage!", "text-green-400 text-xs");
-        return { damagedCount: 0 };
-    }
-    
-    // Damage random buildings
-    const shuffled = ownedBuildings.sort(() => Math.random() - 0.5);
-    const toBeDamaged = shuffled.slice(0, actualDamage);
-    
-    toBeDamaged.forEach(building => {
-        gameState.state.damagedBuildings[building] = true;
-        const buildingName = building.replace(/_/g, ' ');
-        log(`${buildingName} damaged by highstorm!`, "text-orange-400 text-xs");
+    const destroyable = ['market', 'soulcaster'];
+    destroyable.forEach(building => {
+        const count = gameState.state.buildings[building] || 0;
+        for (let i = 0; i < count; i++) ownedBuildings.push(building);
     });
-    
-    if (protectedBuildings > 0) {
-        log(`${protectedBuildings} buildings protected from storm damage.`, "text-green-400 text-xs");
+
+    if (ownedBuildings.length === 0) {
+        return { destroyedCount: 0, destroyedBuildings: [], savedCount: 0, savedBuildings: [] };
     }
-    
-    return { damagedCount: actualDamage };
+
+    // Roll 5% destruction chance per building
+    const wouldDestroy = [];
+    ownedBuildings.forEach(building => {
+        if (Math.random() < 0.05) wouldDestroy.push(building);
+    });
+
+    if (wouldDestroy.length === 0) {
+        return { destroyedCount: 0, destroyedBuildings: [], savedCount: 0, savedBuildings: [] };
+    }
+
+    // Apply stormshelter protection (1:1)
+    const stormshelterCount = gameState.state.buildings.stormshelter || 0;
+    const shuffled = wouldDestroy.sort(() => Math.random() - 0.5);
+    const savedBuildings = shuffled.slice(0, Math.min(stormshelterCount, shuffled.length));
+    const toBeDestroyed = shuffled.slice(savedBuildings.length);
+
+    const destroyedList = [];
+    toBeDestroyed.forEach(building => {
+        gameState.state.buildings[building] = Math.max(0, gameState.state.buildings[building] - 1);
+        destroyedList.push(building);
+        const buildingName = getBuildingDisplayName(building);
+        log(`${buildingName} destroyed by highstorm!`, "text-red-400 text-xs");
+    });
+
+    if (savedBuildings.length > 0) {
+        log(`${savedBuildings.length} building${savedBuildings.length !== 1 ? 's' : ''} protected by stormshelters.`, "text-green-400 text-xs");
+    }
+
+    return {
+        destroyedCount: destroyedList.length,
+        destroyedBuildings: destroyedList,
+        savedCount: savedBuildings.length,
+        savedBuildings: savedBuildings
+    };
 }
 
 /**
@@ -318,6 +393,7 @@ export function updateHighstormEffects(gameState) {
     if (storm.effectsEndDay && currentDay >= storm.effectsEndDay) {
         storm.active = false;
         hideStormOverlay();
+        hideHighstormNotification();
         log("☀️ The highstorm has passed. Skies clear...", "text-cyan-400 text-xs");
     }
     
@@ -371,41 +447,6 @@ export function updateHighstormEffects(gameState) {
         storm.tournamentPostponed = false;
         // Don't auto-restart tournament - let normal schedule handle it
     }
-}
-
-/**
- * Check if a building is damaged
- * @param {Object} gameState - Current game state
- * @param {string} buildingType - Building key
- * @returns {boolean} True if damaged
- */
-export function isBuildingDamaged(gameState, buildingType) {
-    return gameState.state.damagedBuildings && gameState.state.damagedBuildings[buildingType] === true;
-}
-
-/**
- * Repair a damaged building
- * @param {Object} gameState - Current game state
- * @param {string} buildingType - Building key
- */
-export function repairBuilding(gameState, buildingType) {
-    if (!isBuildingDamaged(gameState, buildingType)) {
-        log("This building is not damaged.", "text-red-400");
-        return;
-    }
-    
-    const repairCost = Math.floor(getBuildingCost(gameState, buildingType) * 0.25);
-    
-    if (gameState.state.spheres < repairCost) {
-        log(`Cannot repair. Need ${repairCost.toLocaleString()} spheres, have ${Math.floor(gameState.state.spheres).toLocaleString()}.`, "text-red-400");
-        return;
-    }
-    
-    gameState.state.spheres -= repairCost;
-    delete gameState.state.damagedBuildings[buildingType];
-    
-    const buildingName = buildingType.replace(/_/g, ' ');
-    log(`Repaired ${buildingName} for ${repairCost.toLocaleString()} spheres.`, "text-green-400");
 }
 
 /**
@@ -474,18 +515,116 @@ export function isFabrialBurnedOut(gameState, fabrialType) {
 }
 
 /**
- * Get highstorm power debuff multiplier (affects all players post-storm)
- * @param {Object} gameState - Current game state
- * @returns {number} Multiplier (1.0 = no debuff, 0.8 = -20%)
+ * Show tiered highstorm notification system
+ * Phase 1 (0-10s): Full screen flashing overlay
+ * Phase 2 (10s-10m): Top banner alert with pulse
+ * Phase 3 (10m-end): Small persistent banner
  */
-export function getStormPowerDebuff(gameState) {
-    if (gameState.state.highstorm?.active === true) {
-        return 0.8; // -20% power during storm and 2 days after
+export function showHighstormNotification(gameState) {
+    const notif = document.getElementById('highstorm-notification');
+    if (!notif) return;
+    
+    const phase1 = document.getElementById('highstorm-phase1');
+    const phase2 = document.getElementById('highstorm-phase2');
+    const phase3 = document.getElementById('highstorm-phase3');
+    
+    notif.classList.remove('hidden');
+    
+    // Clear any existing timeouts
+    if (stormOverlayTimeout) clearTimeout(stormOverlayTimeout);
+    if (phase2Timeout) clearTimeout(phase2Timeout);
+    if (phase3Timeout) clearTimeout(phase3Timeout);
+    if (notificationUpdateInterval) clearInterval(notificationUpdateInterval);
+    
+    // PHASE 1: Full screen overlay (10 seconds)
+    if (phase1) {
+        phase1.classList.remove('hidden');
+        phase2.classList.add('hidden');
+        phase3.classList.add('hidden');
     }
-    return 1.0;
+    
+    // Show screen overlay effect
+    showStormOverlay();
+    
+    // Transition to Phase 2 after 10 seconds
+    phase2Timeout = setTimeout(() => {
+        if (phase1) phase1.classList.add('hidden');
+        if (phase2) phase2.classList.remove('hidden');
+        
+        // Start updating time remaining
+        updateHighstormPhase2Time(gameState);
+        notificationUpdateInterval = setInterval(() => updateHighstormPhase2Time(gameState), 1000);
+        
+        // Transition to Phase 3 after 10 minutes
+        phase3Timeout = setTimeout(() => {
+            if (phase2) phase2.classList.add('hidden');
+            if (phase3) phase3.classList.remove('hidden');
+            
+            if (notificationUpdateInterval) clearInterval(notificationUpdateInterval);
+            startPhase3Updates(gameState);
+        }, 600000); // 10 minutes
+    }, 10000); // 10 seconds
 }
+
 /**
- * Show flashing storm overlay effect (lasts 10 seconds real-time)
+ * Update Phase 2 time display
+ */
+function updateHighstormPhase2Time(gameState) {
+    const timeEl = document.getElementById('highstorm-time-remaining');
+    if (!timeEl) return;
+    
+    const effectsEndDay = gameState.state.highstorm?.effectsEndDay;
+    const currentDay = gameState.state.dayCount;
+    
+    if (!effectsEndDay || currentDay >= effectsEndDay) {
+        timeEl.textContent = 'Ending soon';
+        return;
+    }
+    
+    const daysRemaining = effectsEndDay - currentDay;
+    timeEl.textContent = `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
+}
+
+/**
+ * Start Phase 3 updates (small persistent banner)
+ */
+function startPhase3Updates(gameState) {
+    const timeEl = document.getElementById('highstorm-phase3-time');
+    if (!timeEl) return;
+    
+    // Update every second
+    notificationUpdateInterval = setInterval(() => {
+        const effectsEndDay = gameState.state.highstorm?.effectsEndDay;
+        const currentDay = gameState.state.dayCount;
+        
+        if (!effectsEndDay || currentDay >= effectsEndDay) {
+            // Storm effects have ended, hide notification
+            hideHighstormNotification();
+            if (notificationUpdateInterval) clearInterval(notificationUpdateInterval);
+            return;
+        }
+        
+        const daysRemaining = effectsEndDay - currentDay;
+        timeEl.textContent = `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
+    }, 1000);
+}
+
+/**
+ * Hide the highstorm notification
+ */
+export function hideHighstormNotification() {
+    const notif = document.getElementById('highstorm-notification');
+    if (notif) notif.classList.add('hidden');
+    
+    // Clear all timeouts
+    if (stormOverlayTimeout) clearTimeout(stormOverlayTimeout);
+    if (phase2Timeout) clearTimeout(phase2Timeout);
+    if (phase3Timeout) clearTimeout(phase3Timeout);
+    if (notificationUpdateInterval) clearInterval(notificationUpdateInterval);
+}
+
+/**
+ * Show flashing storm overlay effect (10 seconds)
  */
 export function showStormOverlay() {
     // Clear any existing timeout
@@ -528,4 +667,67 @@ export function hideStormOverlay() {
     if (gameContainer) {
         gameContainer.classList.remove('highstorm-active');
     }
+}
+
+/**
+ * Show highstorm impact modal with personalized effects
+ * @param {Object} gameState - Current game state
+ */
+export function showHighstormImpactModal(gameState) {
+    const modal = document.getElementById('highstorm-impact-modal');
+    const content = document.getElementById('highstorm-impact-content');
+    
+    if (!modal || !content) return;
+    
+    const effects = gameState.state.highstorm.lastImpactEffects || [];
+    
+    if (effects.length === 0) {
+        content.innerHTML = '<div class="text-slate-400 text-center p-4">No significant effects on your warcamp.</div>';
+        modal.classList.add('open');
+        return;
+    }
+    
+    // Build modal content
+    let html = '';
+    
+    effects.forEach(effect => {
+        const colorClass = effect.severity === 'positive' ? 'border-green-700/50 bg-green-900/20' : 
+                          effect.severity === 'negative' ? 'border-red-700/50 bg-red-900/20' : 
+                          'border-slate-700/50 bg-slate-900/20';
+        
+        const titleColor = effect.severity === 'positive' ? 'text-green-400' : 
+                          effect.severity === 'negative' ? 'text-red-400' : 
+                          'text-cyan-400';
+        
+        html += `
+            <div class="border ${colorClass} p-3 rounded">
+                <div class="flex items-start gap-2">
+                    <span class="text-2xl">${effect.icon}</span>
+                    <div class="flex-1">
+                        <div class="font-bold ${titleColor} text-sm mb-1">${effect.title}</div>
+                        <div class="text-slate-300 text-xs">${effect.description}</div>
+                        ${effect.action === 'repair' ? `
+                            <button onclick="game.openBuildingRepairInterface()" class="mt-2 text-xs bg-orange-700 hover:bg-orange-600 px-3 py-1 rounded font-bold transition-colors">
+                                Repair Buildings
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    content.innerHTML = html;
+    modal.classList.add('open');
+}
+
+function getBuildingDisplayName(buildingKey) {
+    const nameMap = {
+        market: 'Grand Market',
+        soulcaster: 'Soulcast Bunkers',
+        shelter: 'Bunkers',
+        stormshelter: 'Stormshelter'
+    };
+
+    return nameMap[buildingKey] || buildingKey.replace(/_/g, ' ');
 }
