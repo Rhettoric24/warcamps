@@ -6,6 +6,7 @@ import { simulateNPCJoin } from './plateau-runs.js';
 import { resolveSpy } from '../espionage/espionage.js';
 import { addReport } from '../ui/ui-manager.js';
 import { isGravityBoostActive, isGravityBurnout } from './highstorm.js';
+import { calculateEnemyPower, calculateLandReward } from './conquest.js';
 
 export function openDeployModal(gameState, type) {
     if (type === 'run') {
@@ -15,6 +16,14 @@ export function openDeployModal(gameState, type) {
         }
         if (gameState.state.activeRun.playerForces) {
             log("You have already committed forces to this run.", "text-yellow-400");
+            return;
+        }
+    }
+    
+    if (type === 'conquest') {
+        // Check if enough resources
+        if (gameState.state.spheres < 200) {
+            log("Conquest requires 200 spheres.", "text-red-400");
             return;
         }
     }
@@ -31,7 +40,10 @@ export function openDeployModal(gameState, type) {
         input.value = 0;
     });
 
-    const typeLabel = type === 'run' ? "PLATEAU RUN FORCE" : (type === 'scout' ? "SCOUTING PARTY" : "RAIDING WARBAND");
+    const typeLabel = type === 'run' ? "PLATEAU RUN FORCE" : 
+                      (type === 'scout' ? "SCOUTING PARTY" : 
+                      (type === 'attack' ? "RAIDING WARBAND" : 
+                      (type === 'conquest' ? "CONQUEST FORCE" : "DEPLOYMENT")));
     document.getElementById('deploy-type-label').innerText = typeLabel;
     
     // Add event listeners to update mission info when inputs change
@@ -92,8 +104,8 @@ export function updateMissionInfo(gameState) {
     
     // Calculate estimated duration
     const type = gameState.state.pendingDeployType;
-    const baseDays = type === 'scout' ? 1 : (type === 'attack' ? 1.5 : 2);
-    const durationMs = type === 'run'
+    const baseDays = type === 'scout' ? 1 : (type === 'attack' ? 1.5 : (type === 'conquest' ? 1 : 2));
+    const durationMs = type === 'run' || type === 'conquest'
         ? (baseDays * CONSTANTS.DAY_MS)
         : (baseDays * CONSTANTS.DAY_MS) / speed;
     const durationHours = (durationMs / 3600000).toFixed(1);
@@ -111,6 +123,10 @@ export function updateMissionInfo(gameState) {
         const minSpheres = Math.floor(500 * carryBonus);
         const maxSpheres = Math.floor(1500 * carryBonus);
         sphereEstimate = `${minSpheres.toLocaleString()}-${maxSpheres.toLocaleString()}`;
+    } else if (type === 'conquest') {
+        const enemyPower = calculateEnemyPower(gameState.state.maxLand);
+        const landReward = calculateLandReward(power, enemyPower);
+        sphereEstimate = `Enemy: ${enemyPower} | Land: ${landReward}`;
     } else {
         sphereEstimate = 'Varies by coalition';
     }
@@ -202,6 +218,38 @@ export function confirmDeploy(gameState) {
         });
         updateRunButtonState(gameState);
         log(`Forces committed. Speed Rating: ${(speed * 100).toFixed(0)}%.`, "text-cyan-400");
+        closeDeployModal();
+        return;
+    }
+    
+    if (gameState.state.pendingDeployType === 'conquest') {
+        // Check and deduct spheres
+        if (gameState.state.spheres < 200) {
+            log("Conquest requires 200 spheres.", "text-red-400");
+            return;
+        }
+        gameState.state.spheres -= 200;
+        
+        // Calculate enemy and rewards
+        const enemyPower = calculateEnemyPower(gameState.state.maxLand);
+        const landReward = calculateLandReward(power, enemyPower);
+        
+        const durationMs = CONSTANTS.DAY_MS;
+        const deployment = {
+            id: Date.now(),
+            type: 'conquest',
+            units: units,
+            power: power,
+            returnTime: Date.now() + durationMs,
+            startDay: new Date().toLocaleTimeString(),
+            enemyPower: enemyPower,
+            landReward: landReward
+        };
+        
+        gameState.state.deployments.push(deployment);
+        const actualHours = (durationMs / 3600000).toFixed(1);
+        const winChance = ((power / (power + enemyPower)) * 100).toFixed(0);
+        log(`Conquest deployed! Enemy: ${enemyPower}, Win chance: ~${winChance}%, Return: ${actualHours} hrs.`, "text-cyan-400 font-bold");
         closeDeployModal();
         return;
     }
@@ -321,6 +369,40 @@ export function resolveMission(gameState, deployment) {
             const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
             showMissionResult(gameState, 'attack', false, 0, casualtiesCount);
         }
+    } else if (deployment.type === 'conquest') {
+        // Use stored power or recalculate
+        const playerPower = deployment.power || power;
+        const enemyPower = deployment.enemyPower;
+        const landReward = deployment.landReward;
+        
+        // Determine victory/defeat
+        const victoryChance = playerPower / (playerPower + enemyPower);
+        const victory = Math.random() < victoryChance;
+        
+        // Calculate casualties
+        let casualtyRate;
+        if (victory) {
+            casualtyRate = 0.08 + (Math.random() * 0.07); // 8-15%
+        } else {
+            casualtyRate = 0.25 + (Math.random() * 0.10); // 25-35%
+        }
+        
+        processCasualties(gameState, deployment.units, casualtyRate);
+        const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+        const casualtyPercent = Math.floor(casualtyRate * 100);
+        
+        // Process result
+        if (victory && landReward > 0) {
+            gameState.state.maxLand += landReward;
+            log(`Conquest Victory! Conquered ${landReward} land (${casualtyPercent}% casualties). Max land: ${gameState.state.maxLand}`, "text-green-400 font-bold");
+            showConquestResult(gameState, true, landReward, casualtiesCount, playerPower, enemyPower);
+        } else if (victory) {
+            log(`Conquest Victory! But power too low to hold land (${casualtyPercent}% casualties).`, "text-yellow-400 font-bold");
+            showConquestResult(gameState, true, 0, casualtiesCount, playerPower, enemyPower);
+        } else {
+            log(`Conquest Defeat! No land gained (${casualtyPercent}% casualties).`, "text-orange-400 font-bold");
+            showConquestResult(gameState, false, 0, casualtiesCount, playerPower, enemyPower);
+        }
     }
 }
 
@@ -407,6 +489,40 @@ function showPlateauRunResult(gameState, victory, spheres, casualties, playerGot
     }
     
     const modal = document.getElementById('plateau-result-modal');
+    if (modal) modal.classList.add('show');
+}
+
+function showConquestResult(gameState, victory, landGained, casualties, playerPower, enemyPower) {
+    const statusEl = document.getElementById('conquest-result-status');
+    const landEl = document.getElementById('conquest-result-land');
+    const casualtiesEl = document.getElementById('conquest-result-casualties');
+    const powerEl = document.getElementById('conquest-result-power');
+    const enemyEl = document.getElementById('conquest-result-enemy');
+    
+    if (!statusEl || !landEl || !casualtiesEl) return;
+    
+    if (victory) {
+        statusEl.textContent = landGained > 0 ? '⚔️ CONQUEST VICTORY! ⚔️' : '⚔️ PYRRHIC VICTORY ⚔️';
+        statusEl.className = landGained > 0 ? 'text-lg font-bold text-green-400 mb-6' : 'text-lg font-bold text-yellow-400 mb-6';
+    } else {
+        statusEl.textContent = '💔 CONQUEST FAILED 💔';
+        statusEl.className = 'text-lg font-bold text-red-400 mb-6';
+    }
+    
+    landEl.textContent = `+${landGained}`;
+    casualtiesEl.textContent = casualties.toString();
+    if (powerEl) powerEl.textContent = Math.floor(playerPower).toString();
+    if (enemyEl) enemyEl.textContent = Math.floor(enemyPower).toString();
+    
+    // Add report to Spanreed Center
+    const reportMessage = victory && landGained > 0
+        ? `Conquest successful! Conquered ${landGained} territory. Power ${Math.floor(playerPower)} vs ${Math.floor(enemyPower)}. ${casualties} casualties. Max Land: ${gameState.state.maxLand}`
+        : victory
+        ? `Battle won but insufficient power to hold land. Power ${Math.floor(playerPower)} vs ${Math.floor(enemyPower)}. ${casualties} casualties.`
+        : `Conquest failed. Enemy too strong. Power ${Math.floor(playerPower)} vs ${Math.floor(enemyPower)}. ${casualties} casualties.`;
+    addReport(gameState, 'conquest', reportMessage, { victory, landGained, casualties, playerPower, enemyPower, maxLand: gameState.state.maxLand });
+    
+    const modal = document.getElementById('conquest-result-modal');
     if (modal) modal.classList.add('show');
 }
 

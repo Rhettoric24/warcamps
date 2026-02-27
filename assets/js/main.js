@@ -21,7 +21,7 @@ import { spyAction, processSuspicionDecay } from './espionage/espionage.js';
 import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo, recallMission } from './events/deployments.js';
 import { spawnEvent, simulateNPCJoin, resolveRun } from './events/plateau-runs.js';
 import { checkHighstorm, updateHighstormEffects, hideHighstormNotification, showHighstormImpactModal } from './events/highstorm.js';
-import { startConquest, resolveConquest, getConquestStatus, canStartConquest } from './events/conquest.js';
+import { getConquestStatus, canStartConquest } from './events/conquest.js';
 
 // Create global game instance
 const gameInstance = {
@@ -304,10 +304,7 @@ const gameInstance = {
             // Process suspicion decay for all rivals
             processSuspicionDecay(this);
 
-            // Resolve conquest if active and time is up
-            if (this.state.conquest.active && Date.now() >= this.state.conquest.endTime) {
-                resolveConquest(this);
-            }
+            // Note: Conquest resolution is now handled by checkDeployments() as part of the deployment system
 
             if (!isOffline) {
                 // Add daily growth report with detailed upkeep breakdown
@@ -511,7 +508,7 @@ const gameInstance = {
     openMissionDetails: (index) => openMissionDetails(gameInstance, index),
     closeMissionDetailsModal: () => closeMissionDetailsModal(),
     recallMission: () => recallMission(gameInstance),
-    startConquest: () => startConquest(gameInstance),
+    startConquest: () => openDeployModal(gameInstance, 'conquest'),
     /* Conquest status and availability */
     getConquestStatus: () => getConquestStatus(gameInstance),
     canStartConquest: () => canStartConquest(gameInstance),

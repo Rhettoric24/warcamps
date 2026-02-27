@@ -130,7 +130,8 @@ export function closeMissionModal(type) {
         'scout': 'scout-result-modal',
         'attack': 'attack-result-modal',
         'plateau': 'plateau-result-modal',
-        'espionage': 'espionage-result-modal'
+        'espionage': 'espionage-result-modal',
+        'conquest': 'conquest-result-modal'
     };
     const modalId = modalMap[type];
     const modal = document.getElementById(modalId);

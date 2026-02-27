@@ -30,6 +30,7 @@ export function createGameState() {
             activeDuel: null,
             thrillBid: 1,
             deployments: [],
+            // Deprecated: conquest is now handled through the deployments array
             conquest: {
                 active: false,
                 startTime: null,

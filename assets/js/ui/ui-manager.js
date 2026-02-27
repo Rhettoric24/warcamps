@@ -348,12 +348,16 @@ export function updateDeploymentsUI(gameState) {
             else if (mins > 0) timeStr = `${mins}m ${secs}s`;
 
             const unitCount = d.units ? Object.values(d.units).reduce((a, b) => a + b, 0) : (d.myAgents || 0);
-            const typeLabel = d.type === 'espionage' ? 'ESPIONAGE' : d.type;
+            const typeLabel = d.type === 'espionage' ? 'ESPIONAGE' : (d.type === 'conquest' ? 'CONQUEST' : d.type.toUpperCase());
             let detailLine = `Returns: ${timeStr}`;
             if (d.type === 'espionage') {
                 const action = d.actionLabel || d.action || 'Mission';
                 const targetName = d.targetName || NPC_PRINCES[d.targetKey]?.name || d.targetKey || 'Unknown';
                 detailLine = `${action} • ${targetName} • ${timeStr}`;
+            } else if (d.type === 'conquest') {
+                const landReward = d.landReward || 0;
+                const enemyPower = d.enemyPower || 0;
+                detailLine = `vs ${enemyPower} power • ${landReward} Land • ${timeStr}`;
             }
 
             const div = document.createElement('div');
@@ -672,7 +676,9 @@ export function openMissionDetails(gameState, missionIndex) {
     if (!modal) return;
     
     // Update mission type
-    const typeLabel = mission.type === 'espionage' ? 'ESPIONAGE OPERATION' : mission.type.toUpperCase();
+    const typeLabel = mission.type === 'espionage' ? 'ESPIONAGE OPERATION' : 
+                      mission.type === 'conquest' ? 'TERRITORIAL CONQUEST' :
+                      mission.type.toUpperCase();
     document.getElementById('mission-detail-type').textContent = typeLabel;
     
     // Update time information
@@ -691,10 +697,12 @@ export function openMissionDetails(gameState, missionIndex) {
     // Update units deployed
     const unitsContainer = document.getElementById('mission-detail-units');
     const espionageSection = document.getElementById('mission-detail-espionage');
+    const conquestSection = document.getElementById('mission-detail-conquest');
     
     if (mission.type === 'espionage') {
         // Show espionage-specific info
         espionageSection.classList.remove('hidden');
+        if (conquestSection) conquestSection.classList.add('hidden');
         unitsContainer.innerHTML = '';
         document.getElementById('mission-detail-total').textContent = mission.myAgents || 0;
         
@@ -702,9 +710,55 @@ export function openMissionDetails(gameState, missionIndex) {
         document.getElementById('mission-detail-target').textContent = targetName;
         document.getElementById('mission-detail-action').textContent = mission.actionLabel || mission.action || 'Mission';
         document.getElementById('mission-detail-agents').textContent = mission.myAgents || 0;
-    } else {
-        // Show military units
+    } else if (mission.type === 'conquest') {
+        // Show conquest-specific info
         espionageSection.classList.add('hidden');
+        if (conquestSection) {
+            conquestSection.classList.remove('hidden');
+            
+            const playerPower = mission.power || 0;
+            const enemyPower = mission.enemyPower || 0;
+            const landReward = mission.landReward || 0;
+            const winChance = playerPower > 0 ? ((playerPower / (playerPower + enemyPower)) * 100).toFixed(0) : 0;
+            
+            document.getElementById('mission-detail-conquest-power').textContent = Math.floor(playerPower);
+            document.getElementById('mission-detail-conquest-enemy').textContent = Math.floor(enemyPower);
+            document.getElementById('mission-detail-conquest-land').textContent = landReward;
+            document.getElementById('mission-detail-conquest-chance').textContent = `${winChance}%`;
+        }
+        
+        // Show military units
+        if (mission.units) {
+            const unitLabels = {
+                bridgecrews: 'Bridgecrews',
+                spearmen: 'Spearmen',
+                archers: 'Archers',
+                shardbearers: 'Shardbearers',
+                chulls: 'Chulls'
+            };
+            
+            let unitsHtml = '';
+            let totalUnits = 0;
+            
+            for (const [unitType, count] of Object.entries(mission.units)) {
+                if (count > 0) {
+                    unitsHtml += `
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">${unitLabels[unitType] || unitType}:</span>
+                            <span class="text-white font-bold">${count}</span>
+                        </div>
+                    `;
+                    totalUnits += count;
+                }
+            }
+            
+            unitsContainer.innerHTML = unitsHtml || '<p class="text-slate-500 text-xs italic">No units</p>';
+            document.getElementById('mission-detail-total').textContent = totalUnits;
+        }
+    } else {
+        // Show military units (scout/attack/run)
+        espionageSection.classList.add('hidden');
+        if (conquestSection) conquestSection.classList.add('hidden');
         
         if (mission.units) {
             const unitLabels = {
