@@ -105,6 +105,17 @@ export function recruit(gameState, type) {
     log(`Recruited ${amount} ${type}.`, "text-slate-300");
 }
 
+// Calculate archer protection chance (0 casualties)
+export function getArcherProtection(units) {
+    const archerCount = units.archers || 0;
+    if (archerCount === 0) return 0;
+    
+    // Diminishing returns: 6% * sqrt(archerCount), capped at 90%
+    // 10 archers = 19%, 25 = 30%, 50 = 42%, 100 = 60%, 200 = 85%
+    const protection = Math.min(0.90, 0.06 * Math.sqrt(archerCount));
+    return protection;
+}
+
 export function processCasualties(gameState, units, baseRate) {
     let report = [];
     let totalLost = 0;

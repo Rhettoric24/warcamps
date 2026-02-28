@@ -1,5 +1,5 @@
 // Dev mode flag - Set to true for faster testing (10 sec days, 25k spheres, 10 gemhearts)
-export const DEV_MODE = false; // Change to true for dev/testing
+export const DEV_MODE = true; // Change to true for dev/testing
 
 // Helper function to get DAY_MS based on DEV_MODE
 export function getDAY_MS() {
@@ -32,16 +32,16 @@ export const CONSTANTS = {
 };
 
 export const NPC_PRINCES = {
-    sadeas: { name: "Sadeas", agents: 15, spheres: 15000, gemhearts: 2, provisions: 200, shardbearers: 2, power: 150, bridgecrews: 40, spearmen: 50, archers: 30, chulls: 5, fabrials: ["Gravity-Spanning Rig"], championLevel: 5, championHP: 6, championMaxHP: 8, championFabrials: ["Thrill Amplifier", "Half-Shard"] },
-    vargo: { name: "Taravangian", agents: 50, spheres: 5000, gemhearts: 10, provisions: 500, shardbearers: 0, power: 40, bridgecrews: 10, spearmen: 10, archers: 5, chulls: 2, fabrials: ["Heatrial", "Ledger"], championLevel: 2, championHP: 4, championMaxHP: 5, championFabrials: ["Regeneration Plate"] },
-    sebarial: { name: "Sebarial", agents: 10, spheres: 80000, gemhearts: 5, provisions: 1000, shardbearers: 0, power: 20, bridgecrews: 5, spearmen: 5, archers: 0, chulls: 50, fabrials: ["Ledger"], championLevel: 1, championHP: 3, championMaxHP: 4, championFabrials: [] },
-    dalinar: { name: "Dalinar", agents: 20, spheres: 5000, gemhearts: 0, provisions: 100, shardbearers: 1, power: 120, bridgecrews: 20, spearmen: 40, archers: 20, chulls: 10, fabrials: ["Gravity-Spanning Rig", "Heatrial"], championLevel: 6, championHP: 9, championMaxHP: 9, championFabrials: ["Regeneration Plate", "Thrill Amplifier", "Half-Shard"] }
+    sadeas: { name: "Sadeas", maxLand: 25, agents: 15, spheres: 15000, gemhearts: 2, provisions: 200, shardbearers: 2, power: 150, bridgecrews: 40, spearmen: 50, archers: 30, chulls: 5, fabrials: ["Gravity-Spanning Rig"], championLevel: 5, championHP: 6, championMaxHP: 8, championFabrials: ["Thrill Amplifier", "Half-Shard"] },
+    vargo: { name: "Taravangian", maxLand: 25, agents: 50, spheres: 5000, gemhearts: 10, provisions: 500, shardbearers: 0, power: 40, bridgecrews: 10, spearmen: 10, archers: 5, chulls: 2, fabrials: ["Heatrial", "Ledger"], championLevel: 2, championHP: 4, championMaxHP: 5, championFabrials: ["Regeneration Plate"] },
+    sebarial: { name: "Sebarial", maxLand: 25, agents: 10, spheres: 80000, gemhearts: 5, provisions: 1000, shardbearers: 0, power: 20, bridgecrews: 5, spearmen: 5, archers: 0, chulls: 50, fabrials: ["Ledger"], championLevel: 1, championHP: 3, championMaxHP: 4, championFabrials: [] },
+    dalinar: { name: "Dalinar", maxLand: 25, agents: 20, spheres: 5000, gemhearts: 0, provisions: 100, shardbearers: 1, power: 120, bridgecrews: 20, spearmen: 40, archers: 20, chulls: 10, fabrials: ["Gravity-Spanning Rig", "Heatrial"], championLevel: 6, championHP: 9, championMaxHP: 9, championFabrials: ["Regeneration Plate", "Thrill Amplifier", "Half-Shard"] }
 };
 
 export const UNIT_STATS = {
     bridgecrews: { power: 0.1, survival: 0.25, carry: 0, speed: 0.01, cost: 5, provision: 1 },
     spearmen: { power: 1, survival: 0.75, carry: 0, speed: 0, cost: 10, provision: 1 },
-    archers: { power: 1, survival: 0.9, carry: 0, speed: 0, cost: 15, provision: 1 },
+    archers: { power: 1, survival: 0.9, carry: 0, speed: 0, protection: 0.06, cost: 15, provision: 1 }, // 6% * sqrt(count), cap 90%
     chulls: { power: 0.5, survival: 0.8, carry: 10, speed: -0.025, cost: 50, provision: 3 },
     shardbearers: { power: 0, survival: 0.99, carry: 0, speed: 0, multiplier: 2.0, cost: 0, gemheartCost: 1, provision: 3 },
     noble: { power: 0, survival: 0.5, cost: 50, spy: 1, provision: 2 },
@@ -69,4 +69,3 @@ export const FABRIAL_DATA = {
     thrill_amp: { cost: 2, name: "Thrill Amplifier", arena: true },
     half_shard: { cost: 4, name: "Half-Shard", arena: true }
 };
-

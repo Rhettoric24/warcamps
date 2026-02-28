@@ -132,7 +132,7 @@
             <h1 class="text-3xl font-cinzel text-blue-400 mb-2">Command Hub, Palace</h1>
             <p class="text-slate-400 mb-6 italic">Enter your name, Highprince, to access your warcamp.</p>
             <input type="text" id="username-input" class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white text-center mb-4 focus:border-blue-500 outline-none" placeholder="Highprince Name">
-            <button onclick="game.login()" class="w-full btn-alethi py-3 rounded font-bold text-lg">ENTER COMMAND</button>
+            <button onclick="window.game && window.game.login()" class="w-full btn-alethi py-3 rounded font-bold text-lg">ENTER COMMAND</button>
         </div>
     </div>
 
@@ -174,7 +174,10 @@
                     <div class="text-center min-w-[70px]">
                         <span class="block text-[10px] uppercase text-slate-400">Territory</span>
                         <div class="text-lg font-bold">
-                            <span id="res-land-current" class="text-white">0</span>/<span id="res-land-max" class="text-cyan-400">50</span>
+                            <span id="res-land-current" class="text-white">0</span>/<span id="res-land-max" class="text-cyan-400">25</span>
+                        </div>
+                        <div class="text-[9px] text-purple-400 mt-0.5">
+                            Free: <span id="res-free-land">250</span>
                         </div>
                     </div>
                 </div>
@@ -227,6 +230,14 @@
                                     <button id="btn-build-research_library" onclick="game.build('research_library')" class="btn-alethi px-3 py-1 rounded text-[10px]">10000 S</button>
                                 </div>
                                 <p class="text-[10px] text-slate-400">Unlocks Fabrial Technology | Owned: <span id="own-research_library">0</span></p>
+                                <div id="research-library-upgrade-section" class="mt-2 pt-2 border-t border-slate-600 hidden">
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-[10px] text-purple-300">Level <span id="research-library-level">1</span> | Gem Gen: <span id="research-library-bonus">10%</span></p>
+                                        <button id="btn-upgrade-research_library" onclick="game.upgradeBuilding('research_library')" class="btn-alethi px-2 py-0.5 rounded text-[9px]">
+                                            <span id="research-library-upgrade-cost">12,000 S</span> ⬆️
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="bg-slate-800/50 p-3 rounded border border-slate-700">
                                 <div class="flex justify-between items-center mb-1">
@@ -662,11 +673,21 @@
                     <p class="text-[10px] text-blue-400 mb-2">Owned: <span id="modal-own-spy_network">0</span></p>
                     <p id="btn-build-spy_network" class="btn-alethi px-3 py-1 rounded text-[10px] inline-block">5,000 S</p>
                 </div>
-                <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="game.build('research_library')">
-                    <p class="font-bold text-sm text-blue-300">Research Library</p>
-                    <p class="text-[10px] text-slate-400 mb-2">Unlocks Fabrials</p>
-                    <p class="text-[10px] text-blue-400 mb-2">Owned: <span id="modal-own-research_library">0</span></p>
-                    <p id="btn-build-research_library" class="btn-alethi px-3 py-1 rounded text-[10px] inline-block">10,000 S</p>
+                <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded">
+                    <div class="hover:bg-blue-900/50 transition-colors cursor-pointer mb-2" onclick="game.build('research_library')">
+                        <p class="font-bold text-sm text-blue-300">Research Library</p>
+                        <p class="text-[10px] text-slate-400 mb-2">Unlocks Fabrials</p>
+                        <p class="text-[10px] text-blue-400 mb-2">Owned: <span id="modal-own-research_library">0</span></p>
+                        <p id="btn-build-research_library" class="btn-alethi px-3 py-1 rounded text-[10px] inline-block">10,000 S</p>
+                    </div>
+                    <div id="modal-research-library-upgrade-section" class="pt-2 border-t border-blue-700 hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-[10px] text-purple-300">Level <span id="modal-research-library-level">1</span> | Gem Gen: <span id="modal-research-library-bonus">10%</span></p>
+                        </div>
+                        <button onclick="event.stopPropagation(); game.upgradeBuilding('research_library')" class="btn-alethi px-3 py-1 rounded text-[10px] w-full" id="btn-modal-upgrade-research_library">
+                            Upgrade: <span id="modal-research-library-upgrade-cost">12,000 S</span> ⬆️
+                        </button>
+                    </div>
                 </div>
                 <div class="bg-blue-900/30 border border-blue-700/50 p-3 rounded hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="game.build('market')">
                     <p class="font-bold text-sm text-blue-300">Grand Market</p>
@@ -833,23 +854,41 @@
                     <span class="text-slate-400">Days Away:</span>
                     <span id="offline-recap-days" class="text-white font-bold">0</span>
                 </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-slate-400">Total Spheres Gained:</span>
-                    <span id="offline-recap-spheres" class="text-yellow-400 font-bold">0</span>
+                <div class="flex justify-between items-center border-t border-slate-700 pt-3 mt-3">
+                    <span class="text-slate-400 font-bold">Net Income:</span>
+                    <span id="offline-recap-net-income" class="text-green-400 font-bold">0</span>
                 </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-slate-400">From Gemhearts:</span>
-                    <span id="offline-recap-gems" class="text-cyan-300 font-bold">0</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-slate-400">From Markets:</span>
-                    <span id="offline-recap-markets" class="text-blue-300 font-bold">0</span>
+                <div class="ml-4 space-y-2 text-sm">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-500">From Gemhearts:</span>
+                        <span id="offline-recap-gems" class="text-cyan-300 font-bold">+0</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-500">From Markets/Ledgers:</span>
+                        <span id="offline-recap-markets" class="text-blue-300 font-bold">+0</span>
+                    </div>
+                    <div id="offline-recap-unit-upkeep-row" class="hidden flex justify-between items-center">
+                        <span class="text-slate-500">Unit Upkeep Penalty:</span>
+                        <span id="offline-recap-unit-upkeep" class="text-orange-400 font-bold">-0</span>
+                    </div>
+                    <div id="offline-recap-building-upkeep-row" class="hidden flex justify-between items-center">
+                        <span class="text-slate-500">Building Upkeep:</span>
+                        <span id="offline-recap-building-upkeep" class="text-orange-400 font-bold">-0</span>
+                    </div>
                 </div>
                 <div id="offline-recap-research" class="hidden text-center text-purple-300 font-bold pt-2 border-t border-slate-700"></div>
                 <div class="pt-2 border-t border-slate-700">
                     <div class="text-[10px] uppercase text-emerald-300 font-bold mb-2">Missions Completed</div>
                     <div id="offline-recap-missions" class="hidden space-y-1"></div>
-                    <div id="offline-recap-missions-empty" class="text-slate-500 text-xs italic">No missions completed while away.</div>
+                    <div id="offline-recap-missions-empty" class="text-slate-500 text-xs italic">No missions completed.</div>
+                </div>
+                <div id="offline-recap-deployments-section" class="hidden pt-2 border-t border-slate-700">
+                    <div class="text-[10px] uppercase text-cyan-400 font-bold mb-2">Active Deployments</div>
+                    <div id="offline-recap-deployments" class="text-slate-300 text-xs"></div>
+                </div>
+                <div id="offline-recap-suspicion-section" class="hidden pt-2 border-t border-slate-700">
+                    <div class="text-[10px] uppercase text-yellow-400 font-bold mb-2">Espionage Updates</div>
+                    <div id="offline-recap-suspicion" class="space-y-1 text-xs"></div>
                 </div>
             </div>
 
@@ -1197,6 +1236,21 @@
         <div class="bg-slate-900 border border-slate-600 rounded-lg p-6 w-96 max-w-full m-4 shadow-2xl">
             <h2 class="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">MUSTER FORCES</h2>
             <p id="deploy-type-label" class="text-xs text-cyan-400 mb-4 uppercase tracking-widest"></p>
+            
+            <!-- Conquest Target Selection (shown only for conquest missions) -->
+            <div id="conquest-target-section" class="mb-4 p-3 bg-slate-800/50 border border-slate-600 rounded hidden">
+                <label class="text-xs font-bold text-purple-400 block mb-2">SELECT TARGET</label>
+                <select id="conquest-target" class="w-full bg-black border border-slate-700 rounded px-3 py-2 text-sm text-white">
+                    <option value="freeland">Free Land</option>
+                    <option value="sadeas">Sadeas</option>
+                    <option value="vargo">Taravangian</option>
+                    <option value="sebarial">Sebarial</option>
+                    <option value="dalinar">Dalinar</option>
+                </select>
+                <p class="text-[10px] text-slate-400 mt-2 italic">
+                    <span id="conquest-target-info">Free land requires fixed enemy power. Targeting players requires beating their at-home garrison.</span>
+                </p>
+            </div>
             
             <div class="space-y-3 mb-6">
                 <div class="flex justify-between items-center text-[10px] text-slate-400 italic">

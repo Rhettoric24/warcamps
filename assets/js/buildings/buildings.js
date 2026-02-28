@@ -89,6 +89,36 @@ export function buyGemheart(gameState) {
     }
 }
 
+export function upgradeBuilding(gameState, type) {
+    if (type === 'research_library') {
+        const currentLevel = gameState.state.buildingLevels?.research_library || 1;
+        const owned = gameState.state.buildings.research_library || 0;
+        
+        // Can't upgrade if building doesn't exist
+        if (owned === 0) {
+            log("You must build a Research Library before upgrading it.", "text-red-400");
+            return;
+        }
+        
+        // Calculate exponential cost: 12,000 * 2.5^(level-1)
+        const upgradeCost = Math.floor(12000 * Math.pow(2.5, currentLevel - 1));
+        
+        if (gameState.state.spheres < upgradeCost) {
+            log(`Insufficient spheres. Need ${upgradeCost.toLocaleString()} S.`, "text-red-400");
+            return;
+        }
+        
+        // Apply upgrade
+        gameState.state.spheres -= upgradeCost;
+        if (!gameState.state.buildingLevels) gameState.state.buildingLevels = {};
+        gameState.state.buildingLevels.research_library = currentLevel + 1;
+        
+        const newLevel = currentLevel + 1;
+        const bonusPercent = newLevel * 10;
+        log(`Research Library upgraded to Level ${newLevel}! Gemheart generation: +${bonusPercent}% (base 10% + ${bonusPercent - 10}% bonus).`, "text-purple-400 font-bold");
+    }
+}
+
 export function constructFabrial(gameState, type) {
     // Get bulk amount from input
     let amount = 1;

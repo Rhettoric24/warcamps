@@ -65,6 +65,41 @@ function updateModalsUI(gameState) {
         buildingCounts: buildingCounts,
         unitCounts: unitCounts
     });
+    
+    // Update Research Library modal upgrade section
+    const researchLibraryOwned = gameState.state.buildings.research_library || 0;
+    const modalUpgradeSection = document.getElementById('modal-research-library-upgrade-section');
+    if (modalUpgradeSection) {
+        if (researchLibraryOwned > 0) {
+            modalUpgradeSection.classList.remove('hidden');
+            
+            const currentLevel = gameState.state.buildingLevels?.research_library || 1;
+            const levelEl = document.getElementById('modal-research-library-level');
+            const bonusEl = document.getElementById('modal-research-library-bonus');
+            const upgradeCostEl = document.getElementById('modal-research-library-upgrade-cost');
+            const upgradeBtn = document.getElementById('btn-modal-upgrade-research_library');
+            
+            if (levelEl) levelEl.innerText = currentLevel;
+            if (bonusEl) {
+                const bonus = 10 * currentLevel;
+                bonusEl.innerText = `${bonus}%`;
+            }
+            
+            const upgradeCost = Math.floor(12000 * Math.pow(2.5, currentLevel - 1));
+            if (upgradeCostEl) upgradeCostEl.innerText = `${upgradeCost.toLocaleString()} S`;
+            if (upgradeBtn) {
+                const hasEnough = gameState.state.spheres >= upgradeCost;
+                upgradeBtn.disabled = !hasEnough;
+                if (hasEnough) {
+                    upgradeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    upgradeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        } else {
+            modalUpgradeSection.classList.add('hidden');
+        }
+    }
 }
 
 export function updateTimeUI(gameState) {
@@ -96,9 +131,13 @@ export function updateResourcesUI(gameState) {
     
     // Update land display
     const currentLand = gameState.state.land || 0;
-    const maxLand = gameState.state.maxLand || 50;
+    const maxLand = gameState.state.maxLand || 25;
+    const freeLand = gameState.state.freeLandPool || 0;
     document.getElementById('res-land-current').innerText = currentLand;
     document.getElementById('res-land-max').innerText = maxLand;
+    
+    const freeLandEl = document.getElementById('res-free-land');
+    if (freeLandEl) freeLandEl.innerText = freeLand;
 }
 
 export function updateMilitaryUI(gameState) {
@@ -180,7 +219,7 @@ export function updateBuildingsUI(gameState) {
             const data = BUILDING_DATA[bld];
             const owned = gameState.state.buildings[bld];
             const landCost = data.landCost || 0;
-            const availableLand = (gameState.state.maxLand || 50) - (gameState.state.land || 0);
+            const availableLand = (gameState.state.maxLand || 25) - (gameState.state.land || 0);
             const hasEnoughLand = landCost === 0 || availableLand >= landCost;
             
             if (data.max && owned >= data.max) {
@@ -202,6 +241,41 @@ export function updateBuildingsUI(gameState) {
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
             }
+        }
+    }
+    
+    // Update Research Library upgrade section
+    const researchLibraryOwned = gameState.state.buildings.research_library || 0;
+    const upgradeSection = document.getElementById('research-library-upgrade-section');
+    if (upgradeSection) {
+        if (researchLibraryOwned > 0) {
+            upgradeSection.classList.remove('hidden');
+            
+            const currentLevel = gameState.state.buildingLevels?.research_library || 1;
+            const levelEl = document.getElementById('research-library-level');
+            const bonusEl = document.getElementById('research-library-bonus');
+            const upgradeCostEl = document.getElementById('research-library-upgrade-cost');
+            const upgradeBtn = document.getElementById('btn-upgrade-research_library');
+            
+            if (levelEl) levelEl.innerText = currentLevel;
+            if (bonusEl) {
+                const bonus = 10 * currentLevel;
+                bonusEl.innerText = `${bonus}%`;
+            }
+            
+            const upgradeCost = Math.floor(12000 * Math.pow(2.5, currentLevel - 1));
+            if (upgradeCostEl) upgradeCostEl.innerText = `${upgradeCost.toLocaleString()} S`;
+            if (upgradeBtn) {
+                const hasEnough = gameState.state.spheres >= upgradeCost;
+                upgradeBtn.disabled = !hasEnough;
+                if (hasEnough) {
+                    upgradeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    upgradeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        } else {
+            upgradeSection.classList.add('hidden');
         }
     }
 }
@@ -356,8 +430,7 @@ export function updateDeploymentsUI(gameState) {
                 detailLine = `${action} • ${targetName} • ${timeStr}`;
             } else if (d.type === 'conquest') {
                 const landReward = d.landReward || 0;
-                const enemyPower = d.enemyPower || 0;
-                detailLine = `vs ${enemyPower} power • ${landReward} Land • ${timeStr}`;
+                detailLine = `Intel classified • ${landReward} Land • ${timeStr}`;
             }
 
             const div = document.createElement('div');
@@ -434,7 +507,7 @@ export function updateTabVisibility(gameState) {
 
 export function updateConquestUI(gameState) {
     const currentLand = gameState.state.land || 0;
-    const maxLand = gameState.state.maxLand || 50;
+    const maxLand = gameState.state.maxLand || 25;
     const availableLand = maxLand - currentLand;
     
     // Update land display
@@ -548,7 +621,7 @@ export function updateReportsList(gameState) {
     if (!list) return;
     
     if (gameState.state.reports.length === 0) {
-        list.innerHTML = '<p class="text-slate-500 text-sm italic text-center py-8">No reports yet. Activity in espionage, battles, and daily growth will appear here.</p>';
+        list.innerHTML = '<p class="text-slate-500 text-sm italic text-center py-8">No reports yet. Activity in espionage, battles, and daily reports will appear here.</p>';
         return;
     }
     
@@ -566,6 +639,9 @@ export function updateReportsList(gameState) {
         const color = typeColors[report.type] || 'slate';
         const time = new Date(report.timestamp).toLocaleTimeString();
         const detailsId = `report-details-${index}`;
+        
+        // Display name mapping
+        const displayName = report.type === 'growth' ? 'Daily Report' : report.type;
         
         // Generate detailed information HTML based on report type
         let detailsHTML = '';
@@ -600,27 +676,92 @@ export function updateReportsList(gameState) {
                 </div>
             `;
         } else if (report.type === 'growth' && report.data) {
-            const missionsTotal = report.data.missionsTotal || 0;
+            // Build detailed breakdown for daily report
+            const netIncome = report.data.spheres || 0;
+            const fromGems = report.data.fromGems || 0;
+            const fromMarkets = report.data.fromMarkets || 0;
+            const buildingUpkeep = report.data.buildingUpkeep || 0;
+            const unitUpkeep = report.data.unitUpkeepPenalty || 0;
+            const researchGems = report.data.researchGemsGained || 0;
+            
+            // Income section
+            let incomeHTML = `
+                <div class="mt-2 pt-2 border-t border-${color}-500/20">
+                    <div class="text-[10px] uppercase text-emerald-400 font-bold mb-1">INCOME</div>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between"><span class="text-slate-400">From Gemhearts:</span> <span class="text-cyan-300">+${fromGems.toLocaleString()}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-400">From Markets/Ledgers:</span> <span class="text-blue-300">+${fromMarkets.toLocaleString()}</span></div>
+            `;
+            
+            if (researchGems > 0) {
+                incomeHTML += `<div class="flex justify-between"><span class="text-purple-400">💎 Research Gemheart:</span> <span class="text-purple-300">+${researchGems}</span></div>`;
+            }
+            incomeHTML += `</div></div>`;
+            
+            // Costs section
+            let costsHTML = '';
+            if (buildingUpkeep > 0 || unitUpkeep > 0) {
+                costsHTML = `
+                    <div class="mt-2 pt-2 border-t border-${color}-500/20">
+                        <div class="text-[10px] uppercase text-orange-400 font-bold mb-1">COSTS</div>
+                        <div class="space-y-1 text-xs">
+                `;
+                
+                if (unitUpkeep > 0) {
+                    const tier = report.data.unitUpkeepTier || 'Unknown';
+                    const totalUnits = report.data.totalUnits || 0;
+                    const percent = report.data.unitUpkeepPercent ? Math.floor(report.data.unitUpkeepPercent * 100) : 0;
+                    costsHTML += `<div class="flex justify-between"><span class="text-slate-400">Unit Upkeep (${tier}):</span> <span class="text-orange-400">-${unitUpkeep.toLocaleString()}</span></div>`;
+                    costsHTML += `<div class="text-[10px] text-slate-500 ml-4">${totalUnits} units, -${percent}% income</div>`;
+                }
+                
+                if (buildingUpkeep > 0) {
+                    costsHTML += `<div class="flex justify-between"><span class="text-slate-400">Building Upkeep:</span> <span class="text-orange-400">-${buildingUpkeep.toLocaleString()}</span></div>`;
+                    if (report.data.buildingUpkeepDetails && report.data.buildingUpkeepDetails.length > 0) {
+                        costsHTML += `<div class="text-[10px] text-slate-500 ml-4">${report.data.buildingUpkeepDetails.join(', ')}</div>`;
+                    }
+                }
+                
+                costsHTML += `</div></div>`;
+            }
+            
+            // Net income summary
+            const netColor = netIncome >= 0 ? 'green' : 'red';
+            const netHTML = `
+                <div class="mt-2 pt-2 border-t border-${color}-500/20">
+                    <div class="flex justify-between text-sm font-bold">
+                        <span class="text-slate-300">Net Income:</span>
+                        <span class="text-${netColor}-400">${netIncome >= 0 ? '+' : ''}${netIncome.toLocaleString()} S</span>
+                    </div>
+                </div>
+            `;
+            
+            // Active missions section
             let missionsHTML = '';
-            if (missionsTotal > 0 && report.data.missions) {
-                const rows = Object.entries(report.data.missions)
-                    .map(([type, count]) => `<div><span class="text-slate-400">${type.toUpperCase()}:</span> <span class="text-emerald-300">${count}</span></div>`)
-                    .join('');
+            if (report.data.deployments && report.data.deployments.length > 0) {
+                const now = Date.now();
+                const missionRows = report.data.deployments.map(deployment => {
+                    const timeLeft = deployment.returnTime - report.timestamp;
+                    const hoursLeft = Math.max(0, timeLeft / 3600000);
+                    const typeLabel = deployment.type === 'espionage' ? '🔍 Espionage' :
+                                     deployment.type === 'scout' ? '👁️ Scout' :
+                                     deployment.type === 'attack' ? '⚔️ Attack' :
+                                     deployment.type === 'conquest' ? '🏰 Conquest' :
+                                     deployment.type === 'plateau' ? '⛰️ Plateau Run' : deployment.type;
+                    return `<div class="flex justify-between"><span class="text-slate-400">${typeLabel}</span> <span class="text-cyan-300">${hoursLeft.toFixed(1)}h left</span></div>`;
+                }).join('');
+                
                 missionsHTML = `
-                    <div class="mt-2 pt-2 border-t border-${color}-500/20 space-y-1 text-xs">
-                        <div><span class="text-slate-400">Missions Completed:</span> <span class="text-emerald-300">${missionsTotal}</span></div>
-                        ${rows}
+                    <div class="mt-2 pt-2 border-t border-${color}-500/20">
+                        <div class="text-[10px] uppercase text-cyan-400 font-bold mb-1">ACTIVE MISSIONS (${report.data.deployments.length})</div>
+                        <div class="space-y-1 text-xs">
+                            ${missionRows}
+                        </div>
                     </div>
                 `;
             }
-            detailsHTML = `
-                <div class="mt-2 pt-2 border-t border-${color}-500/20 space-y-1 text-xs">
-                    <div><span class="text-slate-400">Total Income:</span> <span class="text-yellow-300">+${report.data.spheres?.toLocaleString() || 0} spheres</span></div>
-                    <div><span class="text-slate-400">From Gemhearts:</span> <span class="text-cyan-300">+${report.data.fromGems?.toLocaleString() || 0}</span></div>
-                    <div><span class="text-slate-400">From Markets:</span> <span class="text-blue-300">+${report.data.fromMarkets?.toLocaleString() || 0}</span></div>
-                </div>
-                ${missionsHTML}
-            `;
+            
+            detailsHTML = incomeHTML + costsHTML + netHTML + missionsHTML;
         } else if (report.type === 'defense' && report.data) {
             detailsHTML = `
                 <div class="mt-2 pt-2 border-t border-${color}-500/20 space-y-1 text-xs">
@@ -635,7 +776,7 @@ export function updateReportsList(gameState) {
                 <div class="flex justify-between items-start mb-1">
                     <div class="flex items-center gap-2">
                         <span id="${detailsId}-arrow" class="text-${color}-400 text-xs">▶</span>
-                        <span class="text-${color}-400 text-xs font-bold uppercase">${report.type}</span>
+                        <span class="text-${color}-400 text-xs font-bold uppercase">${displayName}</span>
                     </div>
                     <span class="text-slate-500 text-[10px]">${time}</span>
                 </div>
@@ -717,14 +858,12 @@ export function openMissionDetails(gameState, missionIndex) {
             conquestSection.classList.remove('hidden');
             
             const playerPower = mission.power || 0;
-            const enemyPower = mission.enemyPower || 0;
             const landReward = mission.landReward || 0;
-            const winChance = playerPower > 0 ? ((playerPower / (playerPower + enemyPower)) * 100).toFixed(0) : 0;
             
             document.getElementById('mission-detail-conquest-power').textContent = Math.floor(playerPower);
-            document.getElementById('mission-detail-conquest-enemy').textContent = Math.floor(enemyPower);
+            document.getElementById('mission-detail-conquest-enemy').textContent = 'Classified';
             document.getElementById('mission-detail-conquest-land').textContent = landReward;
-            document.getElementById('mission-detail-conquest-chance').textContent = `${winChance}%`;
+            document.getElementById('mission-detail-conquest-chance').textContent = 'Deterministic';
         }
         
         // Show military units

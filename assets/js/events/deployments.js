@@ -1,12 +1,12 @@
 // Deployment and mission management module
-import { UNIT_STATS, CONSTANTS } from '../core/constants.js';
+import { UNIT_STATS, CONSTANTS, NPC_PRINCES } from '../core/constants.js';
 import { log, triggerNotification } from '../core/utils.js';
-import { processCasualties, getAvailableTroops } from '../military/military.js';
+import { processCasualties, getAvailableTroops, getArcherProtection } from '../military/military.js';
 import { simulateNPCJoin } from './plateau-runs.js';
 import { resolveSpy } from '../espionage/espionage.js';
 import { addReport } from '../ui/ui-manager.js';
 import { isGravityBoostActive, isGravityBurnout } from './highstorm.js';
-import { calculateEnemyPower, calculateLandReward } from './conquest.js';
+import { calculateEnemyPower, calculateLandReward, calculateNPCPower, calculateLandUsed, handlePlayerLandLoss } from './conquest.js';
 
 export function openDeployModal(gameState, type) {
     if (type === 'run') {
@@ -26,6 +26,40 @@ export function openDeployModal(gameState, type) {
             log("Conquest requires 200 spheres.", "text-red-400");
             return;
         }
+        // Show conquest target section
+        const targetSection = document.getElementById('conquest-target-section');
+        if (targetSection) {
+            targetSection.classList.remove('hidden');
+            
+            // Update conquest target dropdown with current land values
+            const targetSelect = document.getElementById('conquest-target');
+            if (targetSelect) {
+                const freeLandPool = gameState.state.freeLandPool || 0;
+                targetSelect.options[0].text = `Free Land (Pool: ${freeLandPool})`;
+                
+                // Update NPC options with their current land
+                let optionIndex = 1;
+                for (const key in NPC_PRINCES) {
+                    const npc = NPC_PRINCES[key];
+                    const npcLand = gameState.state.npcState?.[key]?.maxLand ?? 25;
+                    if (targetSelect.options[optionIndex]) {
+                        targetSelect.options[optionIndex].text = `${npc.name} (Land: ${npcLand})`;
+                        optionIndex++;
+                    }
+                }
+            }
+        }
+        
+        // Add event listener for target selection changes
+        const targetSelect = document.getElementById('conquest-target');
+        if (targetSelect) {
+            targetSelect.removeEventListener('change', () => updateMissionInfo(gameState));
+            targetSelect.addEventListener('change', () => updateMissionInfo(gameState));
+        }
+    } else {
+        // Hide conquest target section for non-conquest missions
+        const targetSection = document.getElementById('conquest-target-section');
+        if (targetSection) targetSection.classList.add('hidden');
     }
 
     gameState.state.pendingDeployType = type;
@@ -124,9 +158,28 @@ export function updateMissionInfo(gameState) {
         const maxSpheres = Math.floor(1500 * carryBonus);
         sphereEstimate = `${minSpheres.toLocaleString()}-${maxSpheres.toLocaleString()}`;
     } else if (type === 'conquest') {
-        const enemyPower = calculateEnemyPower(gameState.state.maxLand);
-        const landReward = calculateLandReward(power, enemyPower);
-        sphereEstimate = `Enemy: ${enemyPower} | Land: ${landReward}`;
+        // Get selected conquest target
+        const targetSelect = document.getElementById('conquest-target');
+        const target = targetSelect ? targetSelect.value : 'freeland';
+        
+        let targetName;
+        let targetLand = 0;
+        
+        if (target === 'freeland') {
+            targetName = 'Free Land';
+            targetLand = gameState.state.freeLandPool || 0;
+        } else {
+            const npc = NPC_PRINCES[target];
+            targetName = npc ? npc.name : 'Unknown';
+            targetLand = gameState.state.npcState?.[target]?.maxLand ?? 25;
+        }
+        
+        // Don't reveal enemy power until after battle - just show target status
+        if (targetLand <= 0) {
+            sphereEstimate = `${targetName} has no territory left to conquer.`;
+        } else {
+            sphereEstimate = `Preparing conquest against ${targetName}...`;
+        }
     } else {
         sphereEstimate = 'Varies by coalition';
     }
@@ -223,6 +276,26 @@ export function confirmDeploy(gameState) {
     }
     
     if (gameState.state.pendingDeployType === 'conquest') {
+        // Get selected conquest target
+        const targetSelect = document.getElementById('conquest-target');
+        const target = targetSelect ? targetSelect.value : 'freeland';
+
+        // Hard guard: block conquest if target has no land left
+        if (target === 'freeland') {
+            const freeLandPool = gameState.state.freeLandPool || 0;
+            if (freeLandPool <= 0) {
+                log("Free land pool is fully depleted. Choose a rival target.", "text-red-400");
+                return;
+            }
+        } else {
+            const npc = NPC_PRINCES[target];
+            const rivalLand = gameState.state.npcState?.[target]?.maxLand ?? 25;
+            if (npc && rivalLand <= 0) {
+                log(`${npc.name} has no territory left to conquer. Choose another target.`, "text-red-400");
+                return;
+            }
+        }
+
         // Check and deduct spheres
         if (gameState.state.spheres < 200) {
             log("Conquest requires 200 spheres.", "text-red-400");
@@ -230,8 +303,30 @@ export function confirmDeploy(gameState) {
         }
         gameState.state.spheres -= 200;
         
-        // Calculate enemy and rewards
-        const enemyPower = calculateEnemyPower(gameState.state.maxLand);
+        let enemyPower;
+        let targetName;
+        let targetLand;
+        
+        if (target === 'freeland') {
+            // Free land uses static enemy power calculation
+            enemyPower = calculateEnemyPower(gameState.state.maxLand);
+            targetName = 'Free Land';
+            targetLand = gameState.state.freeLandPool || 0;
+        } else {
+            // Player/NPC target uses their at-home power
+            const npc = NPC_PRINCES[target];
+            if (npc) {
+                enemyPower = calculateNPCPower(target);
+                targetName = npc.name;
+                targetLand = gameState.state.npcState?.[target]?.maxLand ?? 25;
+            } else {
+                // Fallback for multiplayer (not yet implemented)
+                enemyPower = calculateEnemyPower(gameState.state.maxLand);
+                targetName = 'Unknown';
+                targetLand = 25;
+            }
+        }
+        
         const landReward = calculateLandReward(power, enemyPower);
         
         const durationMs = CONSTANTS.DAY_MS;
@@ -243,13 +338,14 @@ export function confirmDeploy(gameState) {
             returnTime: Date.now() + durationMs,
             startDay: new Date().toLocaleTimeString(),
             enemyPower: enemyPower,
-            landReward: landReward
+            landReward: landReward,
+            target: target,  // Store the target (freeland or npc key)
+            targetName: targetName
         };
         
         gameState.state.deployments.push(deployment);
         const actualHours = (durationMs / 3600000).toFixed(1);
-        const winChance = ((power / (power + enemyPower)) * 100).toFixed(0);
-        log(`Conquest deployed! Enemy: ${enemyPower}, Win chance: ~${winChance}%, Return: ${actualHours} hrs.`, "text-cyan-400 font-bold");
+        log(`Conquest against ${targetName} deployed! Return: ${actualHours} hrs.`, "text-cyan-400 font-bold");
         closeDeployModal();
         return;
     }
@@ -309,16 +405,32 @@ export function resolveMission(gameState, deployment) {
             }
             gameState.state.spheres += res.lootShare;
             log(`You returned with ${res.lootShare.toLocaleString()} spheres.`, "text-slate-300");
-            const casualtyRate = 0.05;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            
+            // Check for archer protection
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS PROTECTED THE FORCE! No casualties sustained (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 0.05;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            }
             showPlateauRunResult(gameState, true, res.lootShare, casualtiesCount, res.gemheartWon, res.gemheartWinnerName);
         } else {
             log(`CAMPAIGN DEFEAT. The Parshendi (${res.enemyPower}) held the plateau.`, "text-red-500 font-bold");
-            const casualtyRate = 0.3;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            log("Heavy casualties sustained in the rout.", "text-orange-500");
-            const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            
+            // Check for archer protection
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS PROTECTED THE FORCE! Minimal casualties despite defeat (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 0.3;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                log("Heavy casualties sustained in the rout.", "text-orange-500");
+                casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            }
             showPlateauRunResult(gameState, false, 0, casualtiesCount, false, null);
         }
         return;
@@ -332,15 +444,31 @@ export function resolveMission(gameState, deployment) {
             const spheres = Math.floor(baseSpheres * carryBonus);
             gameState.state.spheres += spheres;
             log(`Scouts returned with ${spheres} spheres (Carry Bonus: ${(carryBonus - 1) * 100}%).`, "text-green-300");
-            const casualtyRate = 0.02;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            
+            // Check for archer protection
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS PROTECTED THE SCOUTS! No casualties (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 0.02;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            }
             showMissionResult(gameState, 'scout', true, spheres, casualtiesCount);
         } else {
             log("Scouting party lost.", "text-red-500");
-            const casualtyRate = 1.0;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            const casualtiesCount = unitsBefore;
+            
+            // Check for archer protection (even in total loss)
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS COVERED THE RETREAT! Force escaped intact (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 1.0;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                casualtiesCount = unitsBefore;
+            }
             showMissionResult(gameState, 'scout', false, 0, casualtiesCount);
         }
     } else if (deployment.type === 'attack') {
@@ -357,16 +485,32 @@ export function resolveMission(gameState, deployment) {
                 gotGemheart = true;
             }
             log(msg, "text-cyan-400 font-bold");
-            const casualtyRate = 0.1;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            
+            // Check for archer protection
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS PROTECTED THE RAIDERS! No casualties (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 0.1;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            }
             showMissionResult(gameState, 'attack', true, spheres, casualtiesCount, gotGemheart);
         } else {
             log("Raid failed.", "text-red-500");
-            const casualtyRate = 0.5;
-            processCasualties(gameState, deployment.units, casualtyRate);
-            log("Heavy losses in the retreat.", "text-orange-500");
-            const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            
+            // Check for archer protection (even in defeat)
+            const archerProtection = getArcherProtection(deployment.units);
+            let casualtiesCount = 0;
+            if (archerProtection > 0 && Math.random() < archerProtection) {
+                log(`⚔️ ARCHERS COVERED THE RETREAT! Minimal casualties (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            } else {
+                const casualtyRate = 0.5;
+                processCasualties(gameState, deployment.units, casualtyRate);
+                log("Heavy losses in the retreat.", "text-orange-500");
+                casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            }
             showMissionResult(gameState, 'attack', false, 0, casualtiesCount);
         }
     } else if (deployment.type === 'conquest') {
@@ -375,32 +519,75 @@ export function resolveMission(gameState, deployment) {
         const enemyPower = deployment.enemyPower;
         const landReward = deployment.landReward;
         
-        // Determine victory/defeat
-        const victoryChance = playerPower / (playerPower + enemyPower);
-        const victory = Math.random() < victoryChance;
+        // Deterministic conquest: attacker wins only if power strictly beats defender
+        const victory = playerPower > enemyPower;
         
-        // Calculate casualties
-        let casualtyRate;
-        if (victory) {
-            casualtyRate = 0.08 + (Math.random() * 0.07); // 8-15%
+        // Check for archer protection
+        const archerProtection = getArcherProtection(deployment.units);
+        let casualtiesCount = 0;
+        let casualtyPercent = 0;
+        
+        if (archerProtection > 0 && Math.random() < archerProtection) {
+            log(`⚔️ ARCHERS PROTECTED THE ARMY! No casualties (${Math.round(archerProtection * 100)}% archer protection).`, "text-green-400 font-bold");
+            casualtiesCount = 0;
+            casualtyPercent = 0;
         } else {
-            casualtyRate = 0.25 + (Math.random() * 0.10); // 25-35%
+            // Calculate casualties
+            let casualtyRate;
+            if (victory) {
+                casualtyRate = 0.08 + (Math.random() * 0.07); // 8-15%
+            } else {
+                casualtyRate = 0.25 + (Math.random() * 0.10); // 25-35%
+            }
+            
+            processCasualties(gameState, deployment.units, casualtyRate);
+            casualtiesCount = Math.floor(unitsBefore * casualtyRate);
+            casualtyPercent = Math.floor(casualtyRate * 100);
         }
-        
-        processCasualties(gameState, deployment.units, casualtyRate);
-        const casualtiesCount = Math.floor(unitsBefore * casualtyRate);
-        const casualtyPercent = Math.floor(casualtyRate * 100);
         
         // Process result
         if (victory && landReward > 0) {
-            gameState.state.maxLand += landReward;
-            log(`Conquest Victory! Conquered ${landReward} land (${casualtyPercent}% casualties). Max land: ${gameState.state.maxLand}`, "text-green-400 font-bold");
-            showConquestResult(gameState, true, landReward, casualtiesCount, playerPower, enemyPower);
+            const target = deployment.target || 'freeland';
+            const targetName = deployment.targetName || 'Free Land';
+            let actualLandGained = landReward;
+            
+            if (target === 'freeland') {
+                // Take from free land pool
+                const available = gameState.state.freeLandPool || 0;
+                actualLandGained = Math.min(landReward, available);
+                gameState.state.freeLandPool = Math.max(0, available - actualLandGained);
+                gameState.state.maxLand += actualLandGained;
+                
+                if (actualLandGained < landReward) {
+                    log(`Conquest Victory! Conquered ${actualLandGained} land from ${targetName} (${casualtyPercent}% casualties). Free land pool depleted!`, "text-green-400 font-bold");
+                } else {
+                    log(`Conquest Victory! Conquered ${actualLandGained} land from ${targetName} (${casualtyPercent}% casualties). Max land: ${gameState.state.maxLand}`, "text-green-400 font-bold");
+                }
+            } else {
+                // Taking from NPC/player
+                const npc = NPC_PRINCES[target];
+                if (npc && gameState.state.npcState[target]) {
+                    const available = gameState.state.npcState[target].maxLand ?? 25;
+                    actualLandGained = Math.min(landReward, available);
+                    gameState.state.npcState[target].maxLand = Math.max(0, available - actualLandGained);
+                    gameState.state.maxLand += actualLandGained;
+                    
+                    log(`Conquest Victory! Conquered ${actualLandGained} land from ${targetName} (${casualtyPercent}% casualties). ${targetName}'s land: ${gameState.state.npcState[target].maxLand}, Your land: ${gameState.state.maxLand}`, "text-green-400 font-bold");
+                } else {
+                    // Multiplayer player target (not yet implemented)
+                    gameState.state.maxLand += actualLandGained;
+                    log(`Conquest Victory! Conquered ${actualLandGained} land from ${targetName} (${casualtyPercent}% casualties). Max land: ${gameState.state.maxLand}`, "text-green-400 font-bold");
+                }
+            }
+            
+            showConquestResult(gameState, true, actualLandGained, casualtiesCount, playerPower, enemyPower);
         } else if (victory) {
-            log(`Conquest Victory! But power too low to hold land (${casualtyPercent}% casualties).`, "text-yellow-400 font-bold");
+            const targetName = deployment.targetName || 'Unknown';
+            log(`Conquest Victory against ${targetName}! But power too low to hold land (${casualtyPercent}% casualties).`, "text-yellow-400 font-bold");
             showConquestResult(gameState, true, 0, casualtiesCount, playerPower, enemyPower);
         } else {
-            log(`Conquest Defeat! No land gained (${casualtyPercent}% casualties).`, "text-orange-400 font-bold");
+            const targetName = deployment.targetName || 'Unknown';
+            log(`Conquest Defeat against ${targetName}! No land gained (${casualtyPercent}% casualties).`, "text-orange-400 font-bold");
             showConquestResult(gameState, false, 0, casualtiesCount, playerPower, enemyPower);
         }
     }

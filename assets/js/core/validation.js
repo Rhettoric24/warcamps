@@ -63,7 +63,7 @@ export function canBuild(gameState, buildingKey) {
     // Check land availability
     const landCost = buildData.landCost || 0;
     const usedLand = gameState.state.land || 0;
-    const maxLand = gameState.state.maxLand || 50;
+    const maxLand = gameState.state.maxLand || 25;
     const availableLand = maxLand - usedLand;
     if (landCost > 0 && availableLand < landCost) {
         return {

@@ -15,7 +15,7 @@ import { log, requestNotificationPermission, updateNotificationButton, triggerNo
 import { updateUI, setTab, updateEspionageUI, addReport, updateReportsList, sendSpanreedMessage, updateMessagesList, toggleReportDetails, openMissionDetails, closeMissionDetailsModal } from './ui/ui-manager.js';
 import { openModal, closeModal, updateModalStats, updateSpyNetwork, toggleTournamentCard, toggleBlackMarket, closeRecapModal, closeMissionModal, openSpanreedModal, closeSpanreedModal, setSpanreedTab, openSpyPlanningModal, closeSpyPlanningModal, openOfflineRecapModal, closeOfflineRecapModal } from './ui/modal-manager.js';
 import { recruit, getArmyStats } from './military/military.js';
-import { build, buyGemheart, constructFabrial, getEffectiveBuildingBonus } from './buildings/buildings.js';
+import { build, buyGemheart, constructFabrial, upgradeBuilding, getEffectiveBuildingBonus } from './buildings/buildings.js';
 import { startDuel, commitThrill, enterTournament, useThrillAmplifier, useHalfShard, useRegenPlate, forfeitDuel } from './arena/arena.js';
 import { spyAction, processSuspicionDecay } from './espionage/espionage.js';
 import { openDeployModal, closeDeployModal, confirmDeploy, checkDeployments, updateMissionInfo, recallMission } from './events/deployments.js';
@@ -45,11 +45,11 @@ const gameInstance = {
         
         log(`Welcome, Highprince ${name}. Warcamp Command online.`, "text-cyan-400 font-bold");
         if (DEV_MODE) {
-            log(`⚡ DEV MODE ACTIVE: 10-second days, 25k spheres, 10 gemhearts`, "text-yellow-400 font-bold");
+            log(`⚡ DEV MODE ACTIVE: 10-second days, 10k spheres, 2 gemhearts`, "text-yellow-400 font-bold");
             console.log('%c⚡ DEV MODE ENABLED', 'background: #fbbf24; color: black; font-weight: bold; padding: 4px 8px;');
             console.log('Day duration: 10 seconds');
-            console.log('Starting spheres: 25,000');
-            console.log('Starting gemhearts: 10');
+            console.log('Starting spheres: 10,000');
+            console.log('Starting gemhearts: 2');
         }
         updateNotificationButton();
     },
@@ -122,7 +122,8 @@ const gameInstance = {
         const elapsed = now - this.state.lastTickTime;
         if (elapsed >= CONSTANTS.DAY_MS) {
             const daysPassed = Math.floor(elapsed / CONSTANTS.DAY_MS);
-            this.processDailyTicks(daysPassed, daysPassed > 1);
+            const isOffline = daysPassed > 1;
+            this.processDailyTicks(daysPassed, isOffline);
             this.state.lastTickTime += daysPassed * CONSTANTS.DAY_MS;
         }
 
@@ -173,6 +174,13 @@ const gameInstance = {
         let researchGemsGained = 0;
         let spheresFromGemsTotal = 0;
         let spheresFromMarketsTotal = 0;
+        let suspicionChanges = [];
+        let finalDeploymentCount = 0;
+        let buildingUpkeepTotal = 0;
+        let unitUpkeepReductionTotal = 0;
+        let unitUpkeepTier = 'Low';
+        let totalUnits = 0;
+        
         for (let i = 0; i < count; i++) {
             const spheresFromGems = this.state.gemhearts * 75;
             this.state.spheres += spheresFromGems;
@@ -185,15 +193,15 @@ const gameInstance = {
             if (this.state.fabrials.ledger > 0) income *= (1 + (0.5 * this.state.fabrials.ledger));
 
             // Calculate total army size for upkeep tier
-            const totalUnits = (this.state.military.bridgecrews || 0) +
-                             (this.state.military.spearmen || 0) +
-                             (this.state.military.archers || 0) +
-                             (this.state.military.chulls || 0) +
-                             (this.state.military.shardbearers || 0);
+            totalUnits = (this.state.military.bridgecrews || 0) +
+                         (this.state.military.spearmen || 0) +
+                         (this.state.military.archers || 0) +
+                         (this.state.military.chulls || 0) +
+                         (this.state.military.shardbearers || 0);
 
             // Determine unit upkeep tier and income penalty
             let unitUpkeepPenalty = 0;
-            let unitUpkeepTier = 'Low';
+            unitUpkeepTier = 'Low';
             if (totalUnits > 600) {
                 unitUpkeepPenalty = 0.60;
                 unitUpkeepTier = 'Crippling';
@@ -209,6 +217,7 @@ const gameInstance = {
             const incomeBeforePenalty = income;
             income = Math.floor(income * (1 - unitUpkeepPenalty));
             const incomeReduction = incomeBeforePenalty - income;
+            unitUpkeepReductionTotal += incomeReduction;
 
             this.state.spheres += income;
             spheresFromMarketsTotal += income;
@@ -274,6 +283,7 @@ const gameInstance = {
             // Apply building upkeep
             if (buildingUpkeep > 0) {
                 this.state.spheres -= buildingUpkeep;
+                buildingUpkeepTotal += buildingUpkeep;
             }
 
             // Reset champion HP to full every day
@@ -283,12 +293,19 @@ const gameInstance = {
             this.state.arena.thrillAmpUseCount = 0;
             this.state.arena.halfShardUseCount = 0;
             this.state.arena.regenPlateUseCount = 0;
+            
+            // Track gems gained THIS iteration (for daily report)
+            let gemsThisDay = 0;
             const researchLibraries = this.state.buildings.research_library || 0;
             if (researchLibraries > 0) {
-                const chance = 0.05 * researchLibraries;
+                // Base 10% chance per library, increased by +10% per upgrade level
+                const libraryLevel = this.state.buildingLevels?.research_library || 1;
+                const levelBonus = 1 + (0.10 * (libraryLevel - 1)); // 1.0 at lvl 1, 1.1 at lvl 2, etc.
+                const chance = 0.10 * researchLibraries * levelBonus;
                 if (Math.random() < chance) {
                     this.state.gemhearts += 1;
                     researchGemsGained += 1;
+                    gemsThisDay = 1;
                 }
             }
             if (!isOffline) {
@@ -301,8 +318,45 @@ const gameInstance = {
             // Update highstorm effects (clear expired effects)
             updateHighstormEffects(this);
             
-            // Process suspicion decay for all rivals
-            processSuspicionDecay(this);
+            // Process suspicion decay for all rivals and track changes if offline
+            if (isOffline) {
+                // Before decay, capture current suspicion levels
+                const beforeSuspicion = {};
+                for (const rivalKey in this.state.rivals) {
+                    const rival = this.state.rivals[rivalKey];
+                    beforeSuspicion[rivalKey] = {
+                        suspicion: rival.suspicion || 0,
+                        level: rival.suspicionLevel || 'unknown'
+                    };
+                }
+                
+                processSuspicionDecay(this);
+                
+                // After decay, check for significant changes
+                for (const rivalKey in this.state.rivals) {
+                    const rival = this.state.rivals[rivalKey];
+                    const before = beforeSuspicion[rivalKey];
+                    const after = {
+                        suspicion: rival.suspicion || 0,
+                        level: rival.suspicionLevel || 'unknown'
+                    };
+                    
+                    // Track if suspicion changed significantly (dropped by 10+ or level changed)
+                    if (before.suspicion > after.suspicion && 
+                        (before.suspicion - after.suspicion >= 10 || before.level !== after.level)) {
+                        const targetName = NPC_PRINCES[rivalKey]?.name || rivalKey;
+                        suspicionChanges.push({
+                            target: targetName,
+                            before: before.suspicion,
+                            after: after.suspicion,
+                            levelBefore: before.level,
+                            levelAfter: after.level
+                        });
+                    }
+                }
+            } else {
+                processSuspicionDecay(this);
+            }
 
             // Note: Conquest resolution is now handled by checkDeployments() as part of the deployment system
 
@@ -312,27 +366,27 @@ const gameInstance = {
                 const shouldReport = spheresFromGems > 0 || income > 0 || buildingUpkeep > 0 || incomeReduction > 0;
                 
                 if (shouldReport) {
-                    let reportText = `Daily income: ${netIncome.toLocaleString()} spheres (${spheresFromGems} from gemhearts, ${income.toLocaleString()} from markets/ledgers`;
+                    // Count active deployments
+                    const activeMissions = this.state.deployments.length;
+                    const espionageMissions = this.state.deployments.filter(d => d.type === 'espionage').length;
                     
-                    // Add unit upkeep penalty if applicable
-                    if (unitUpkeepPenalty > 0) {
-                        reportText += `, -${incomeReduction.toLocaleString()} unit upkeep [${unitUpkeepTier}: ${totalUnits} units, -${Math.floor(unitUpkeepPenalty * 100)}% income]`;
-                    }
+                    // Create concise summary line - always show all sections
+                    let reportText = `${netIncome >= 0 ? '+' : ''}${netIncome.toLocaleString()} S | ${activeMissions} Mission${activeMissions === 1 ? '' : 's'} | ${espionageMissions} Espionage`;
                     
-                    // Add building upkeep details
-                    if (buildingUpkeep > 0) {
-                        reportText += `, -${buildingUpkeep.toLocaleString()} building upkeep (${buildingUpkeepDetails.join(', ')})`;
-                    }
-                    
-                    reportText += ').';
                     addReport(this, 'growth', reportText, { 
                         spheres: netIncome, 
                         fromGems: spheresFromGems, 
                         fromMarkets: income,
                         buildingUpkeep: buildingUpkeep,
+                        buildingUpkeepDetails: buildingUpkeepDetails,
                         unitUpkeepPenalty: incomeReduction,
                         unitUpkeepTier: unitUpkeepTier,
-                        totalUnits: totalUnits
+                        totalUnits: totalUnits,
+                        unitUpkeepPercent: unitUpkeepPenalty,
+                        researchGemsGained: gemsThisDay,
+                        activeMissions: this.state.deployments.length,
+                        espionageMissions: this.state.deployments.filter(d => d.type === 'espionage').length,
+                        deployments: [...this.state.deployments]
                     });
                 }
                 
@@ -359,6 +413,11 @@ const gameInstance = {
                     this.state.tournamentActive = false;
                 }
             }
+            
+            // Track active deployments count at the end of final day
+            if (i === count - 1) {
+                finalDeploymentCount = this.state.deployments.length;
+            }
         }
 
         if (researchGemsGained > 0) {
@@ -373,23 +432,73 @@ const gameInstance = {
             days: count,
             spheresFromGems: spheresFromGemsTotal,
             spheresFromMarkets: spheresFromMarketsTotal,
-            researchGemsGained: researchGemsGained
+            researchGemsGained: researchGemsGained,
+            buildingUpkeepTotal: buildingUpkeepTotal,
+            unitUpkeepReductionTotal: unitUpkeepReductionTotal,
+            unitUpkeepTier: unitUpkeepTier,
+            totalUnits: totalUnits,
+            suspicionChanges: suspicionChanges,
+            activeDeployments: finalDeploymentCount
         };
     },
 
         showOfflineRecap(summary) {
             const daysEl = document.getElementById('offline-recap-days');
-            const spheresEl = document.getElementById('offline-recap-spheres');
+            const netIncomeEl = document.getElementById('offline-recap-net-income');
             const gemsEl = document.getElementById('offline-recap-gems');
             const marketsEl = document.getElementById('offline-recap-markets');
+            const unitUpkeepEl = document.getElementById('offline-recap-unit-upkeep');
+            const unitUpkeepRowEl = document.getElementById('offline-recap-unit-upkeep-row');
+            const buildingUpkeepEl = document.getElementById('offline-recap-building-upkeep');
+            const buildingUpkeepRowEl = document.getElementById('offline-recap-building-upkeep-row');
             const missionsEl = document.getElementById('offline-recap-missions');
             const missionsEmptyEl = document.getElementById('offline-recap-missions-empty');
 
+            // Update modal title and subtitle based on single day vs multiple days
+            const modalTitle = document.querySelector('#offline-recap-modal h2');
+            const modalSubtitle = document.querySelector('#offline-recap-modal p');
+            const daysLabel = document.querySelector('#offline-recap-modal .space-y-3 .flex:first-child span:first-child');
+            if (summary.days === 1) {
+                if (modalTitle) modalTitle.textContent = 'DAILY REPORT';
+                if (modalSubtitle) modalSubtitle.textContent = 'A new day dawns at your Warcamp.';
+                if (daysLabel) daysLabel.textContent = 'Day:';
+            } else {
+                if (modalTitle) modalTitle.textContent = 'OFFLINE REPORT';
+                if (modalSubtitle) modalSubtitle.textContent = 'Warcamp activity processed while you were away.';
+                if (daysLabel) daysLabel.textContent = 'Days Away:';
+            }
+
             const totalIncome = (summary.spheresFromGems || 0) + (summary.spheresFromMarkets || 0);
-            if (daysEl) daysEl.textContent = summary.days;
-            if (spheresEl) spheresEl.textContent = totalIncome.toLocaleString();
-            if (gemsEl) gemsEl.textContent = (summary.spheresFromGems || 0).toLocaleString();
-            if (marketsEl) marketsEl.textContent = (summary.spheresFromMarkets || 0).toLocaleString();
+            const totalCosts = (summary.buildingUpkeepTotal || 0) + (summary.unitUpkeepReductionTotal || 0);
+            const netIncome = totalIncome - totalCosts;
+            
+            if (daysEl) daysEl.textContent = summary.days === 1 ? (summary.currentDay || 1) : summary.days;
+            if (netIncomeEl) {
+                netIncomeEl.textContent = (netIncome >= 0 ? '+' : '') + netIncome.toLocaleString();
+                netIncomeEl.className = netIncome >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+            }
+            if (gemsEl) gemsEl.textContent = '+' + (summary.spheresFromGems || 0).toLocaleString();
+            if (marketsEl) marketsEl.textContent = '+' + (summary.spheresFromMarkets || 0).toLocaleString();
+            
+            // Unit upkeep penalty
+            if (unitUpkeepEl && unitUpkeepRowEl) {
+                if (summary.unitUpkeepReductionTotal > 0) {
+                    unitUpkeepEl.textContent = '-' + summary.unitUpkeepReductionTotal.toLocaleString();
+                    unitUpkeepRowEl.classList.remove('hidden');
+                } else {
+                    unitUpkeepRowEl.classList.add('hidden');
+                }
+            }
+            
+            // Building upkeep
+            if (buildingUpkeepEl && buildingUpkeepRowEl) {
+                if (summary.buildingUpkeepTotal > 0) {
+                    buildingUpkeepEl.textContent = '-' + summary.buildingUpkeepTotal.toLocaleString();
+                    buildingUpkeepRowEl.classList.remove('hidden');
+                } else {
+                    buildingUpkeepRowEl.classList.add('hidden');
+                }
+            }
 
             const researchEl = document.getElementById('offline-recap-research');
             if (researchEl) {
@@ -398,6 +507,34 @@ const gameInstance = {
                     researchEl.classList.remove('hidden');
                 } else {
                     researchEl.classList.add('hidden');
+                }
+            }
+            
+            // Active deployments status
+            const deploymentsEl = document.getElementById('offline-recap-deployments');
+            const deploymentsSectionEl = document.getElementById('offline-recap-deployments-section');
+            if (deploymentsEl && deploymentsSectionEl) {
+                if (summary.activeDeployments > 0) {
+                    deploymentsEl.textContent = `${summary.activeDeployments} mission${summary.activeDeployments === 1 ? '' : 's'} currently active`;
+                    deploymentsSectionEl.classList.remove('hidden');
+                } else {
+                    deploymentsSectionEl.classList.add('hidden');
+                }
+            }
+            
+            // Suspicion changes
+            const suspicionEl = document.getElementById('offline-recap-suspicion');
+            const suspicionSectionEl = document.getElementById('offline-recap-suspicion-section');
+            if (suspicionEl && suspicionSectionEl) {
+                if (summary.suspicionChanges && summary.suspicionChanges.length > 0) {
+                    const items = summary.suspicionChanges.map(change => {
+                        const arrow = '→';
+                        return `<div class="flex justify-between items-center"><span class="text-slate-400">${change.target}</span><span class="text-cyan-400">${change.before} ${arrow} ${change.after} (${change.levelAfter})</span></div>`;
+                    }).join('');
+                    suspicionEl.innerHTML = items;
+                    suspicionSectionEl.classList.remove('hidden');
+                } else {
+                    suspicionSectionEl.classList.add('hidden');
                 }
             }
 
@@ -492,6 +629,7 @@ const gameInstance = {
     toggleReportDetails: (detailsId) => toggleReportDetails(detailsId),
     recruit: (type) => recruit(gameInstance, type),
     build: (type) => build(gameInstance, type),
+    upgradeBuilding: (type) => upgradeBuilding(gameInstance, type),
     buyGemheart: () => buyGemheart(gameInstance),
     constructFabrial: (type) => constructFabrial(gameInstance, type),
     startDuel: () => startDuel(gameInstance),

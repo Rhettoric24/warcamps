@@ -5,11 +5,12 @@ export function createGameState() {
     return {
         username: null,
         state: {
-            spheres: DEV_MODE ? 25000 : 15000,
-            gemhearts: DEV_MODE ? 10 : 1,
+            spheres: 10000,
+            gemhearts: 2,
             provisions: 0,
             land: 0,
-            maxLand: 50,
+            maxLand: 25, // Starting land reduced for multiplayer
+            freeLandPool: 250, // 50 × 5 players (1 player + 4 NPCs)
             military: {
                 bridgecrews: 20, spearmen: 100, archers: 0,
                 shardbearers: 0, chulls: 0,
@@ -43,6 +44,9 @@ export function createGameState() {
                 monastery: 0, shelter: 0, spy_network: 0, research_library: 0,
                 stormshelter: 0, whisper_tower: 0
             },
+            buildingLevels: {
+                research_library: 1 // Upgradeable building levels
+            },
             fabrials: {
                 heatrial: 0,
                 ledger: 0,
@@ -68,6 +72,13 @@ export function createGameState() {
                 daysSinceStorm: 10,
                 nextStormProbability: 0,
                 active: false
+            },
+            npcState: {
+                // Track NPC land and state (separate from constants)
+                sadeas: { maxLand: 25 },
+                vargo: { maxLand: 25 },
+                sebarial: { maxLand: 25 },
+                dalinar: { maxLand: 25 }
             }
         }
     };
@@ -91,13 +102,24 @@ export function loadGameState(username, gameState) {
         }
     }
 
+    const mergedNpcState = { ...gameState.state.npcState };
+    if (parsed.npcState) {
+        for (const npcKey in parsed.npcState) {
+            mergedNpcState[npcKey] = {
+                ...(mergedNpcState[npcKey] || {}),
+                ...parsed.npcState[npcKey]
+            };
+        }
+    }
+
     gameState.state = {
         ...gameState.state,
         ...parsed,
         military: { ...gameState.state.military, ...parsed.military },
         buildings: { ...gameState.state.buildings, ...parsed.buildings },
         fabrials: newFabrials,
-        arena: { ...gameState.state.arena, ...parsed.arena }
+        arena: { ...gameState.state.arena, ...parsed.arena },
+        npcState: mergedNpcState
     };
     if (parsed.activeRun) gameState.state.activeRun = parsed.activeRun;
     if (parsed.deployments) gameState.state.deployments = parsed.deployments;
